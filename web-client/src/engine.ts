@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GameState, TokenState } from './wasmLoader';
 import { getTile3DPosition } from './boardCoordinates';
 import { sounds } from './soundEffects';
@@ -8,6 +9,7 @@ export class Ludo3DEngine {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+  private controls: OrbitControls;
   private raycaster = new THREE.Raycaster();
   private mouse = new THREE.Vector2();
 
@@ -17,6 +19,9 @@ export class Ludo3DEngine {
   private diceMesh!: THREE.Mesh;
   private isDiceRolling = false;
   private diceTargetRotation = new THREE.Euler();
+
+  private pointerDownX = 0;
+  private pointerDownY = 0;
 
   private onTokenClickedCallback?: (tokenId: number) => void;
 
@@ -46,16 +51,25 @@ export class Ludo3DEngine {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
-    // 4. Lighting
+    // 4. Orbit Controls (Mouse Orbit / Rotate / Pan / Zoom)
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.maxPolarAngle = Math.PI / 2.15; // Prevent camera going below floor
+    this.controls.minDistance = 6;
+    this.controls.maxDistance = 40;
+
+    // 5. Lighting
     this.setupLighting();
 
-    // 5. Build 3D Objects
+    // 6. Build 3D Objects
     this.buildBoard();
     this.buildDice();
 
-    // 6. Event Listeners
+    // 7. Event Listeners
     window.addEventListener('resize', this.onWindowResize.bind(this));
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    this.renderer.domElement.addEventListener('pointerup', this.onPointerUp.bind(this));
 
     // 7. Start Render Loop
     this.animate();
@@ -288,6 +302,17 @@ export class Ludo3DEngine {
   }
 
   private onPointerDown(event: PointerEvent): void {
+    this.pointerDownX = event.clientX;
+    this.pointerDownY = event.clientY;
+  }
+
+  private onPointerUp(event: PointerEvent): void {
+    const dx = Math.abs(event.clientX - this.pointerDownX);
+    const dy = Math.abs(event.clientY - this.pointerDownY);
+
+    // Only register as click if pointer moved less than 6px (otherwise it was an orbit/drag)
+    if (dx > 6 || dy > 6) return;
+
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -311,6 +336,9 @@ export class Ludo3DEngine {
 
   private animate(): void {
     requestAnimationFrame(this.animate.bind(this));
+
+    // Update Orbit Controls
+    this.controls.update();
 
     // Smooth Lerp Pawn Movement
     this.pawnMeshes.forEach((mesh, id) => {
