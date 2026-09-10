@@ -24,10 +24,10 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
     ];
 
     const corners = [
-      { cx: -4.8, cz: 4.8 },   // Red (0) - Bottom-Left
-      { cx: -4.8, cz: -4.8 },  // Green (1) - Top-Left
-      { cx: 4.8, cz: -4.8 },   // Yellow (2) - Top-Right
-      { cx: 4.8, cz: 4.8 }    // Blue (3) - Bottom-Right
+      { cx: -4.8, cz: -4.8 },  // Red (0) - Top-Left
+      { cx: 4.8, cz: -4.8 },   // Green (1) - Top-Right
+      { cx: 4.8, cz: 4.8 },    // Yellow (2) - Bottom-Right
+      { cx: -4.8, cz: 4.8 }    // Blue (3) - Bottom-Left
     ];
 
     const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
