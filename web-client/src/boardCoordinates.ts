@@ -105,3 +105,38 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
 
   return cellTo3D(col, row, yPos);
 }
+
+export function getStepByStepPath(
+  colorIdx: number,
+  oldSteps: number,
+  newSteps: number,
+  tokenId: number
+): Point3D[] {
+  const path: Point3D[] = [];
+  const startTrackMap = [0, 13, 26, 39];
+  const stretchBaseMap = [100, 200, 300, 400];
+
+  const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
+  const startTrack = startTrackMap[safeColorIdx];
+  const stretchBase = stretchBaseMap[safeColorIdx];
+
+  // If token is spawning out of base (-1)
+  if (oldSteps === 0 || oldSteps === -1) {
+    path.push(getTile3DPosition(startTrack, tokenId, safeColorIdx));
+    return path;
+  }
+
+  for (let s = oldSteps + 1; s <= newSteps; s++) {
+    let posCode = -1;
+    if (s <= 51) {
+      posCode = (startTrack + s - 1) % 52;
+    } else if (s >= 52 && s <= 56) {
+      posCode = stretchBase + (s - 51);
+    } else if (s >= 57) {
+      posCode = 999;
+    }
+    path.push(getTile3DPosition(posCode, tokenId, safeColorIdx));
+  }
+
+  return path;
+}

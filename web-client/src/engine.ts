@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GameState, TokenState } from './wasmLoader';
-import { getTile3DPosition } from './boardCoordinates';
+import { getTile3DPosition, getStepByStepPath } from './boardCoordinates';
 import { sounds } from './soundEffects';
 
 export class Ludo3DEngine {
@@ -15,6 +15,8 @@ export class Ludo3DEngine {
 
   private pawnMeshes: Map<number, THREE.Mesh> = new Map();
   private pawnTargetPositions: Map<number, THREE.Vector3> = new Map();
+  private pawnWaypoints: Map<number, THREE.Vector3[]> = new Map();
+  private tokenPreviousSteps: Map<number, number> = new Map();
   private highlightRings: THREE.Mesh[] = [];
   private diceMesh!: THREE.Mesh;
   private isDiceRolling = false;
@@ -264,12 +266,18 @@ export class Ludo3DEngine {
       const p3d = getTile3DPosition(token.position, token.id, colorIdx);
       const targetVec = new THREE.Vector3(p3d.x, p3d.y, p3d.z);
 
-      const currentTarget = this.pawnTargetPositions.get(token.id);
-      if (currentTarget && !currentTarget.equals(targetVec)) {
-        sounds.playStep();
+      const prevSteps = this.tokenPreviousSteps.get(token.id) ?? (token.position === -1 ? -1 : token.steps_taken);
+
+      if (token.steps_taken > prevSteps && prevSteps !== -1) {
+        // Generate step-by-step intermediate waypoints
+        const pathPoints = getStepByStepPath(colorIdx, prevSteps, token.steps_taken, token.id);
+        const waypointsVec = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+        this.pawnWaypoints.set(token.id, waypointsVec);
+      } else {
+        this.pawnTargetPositions.set(token.id, targetVec);
       }
 
-      this.pawnTargetPositions.set(token.id, targetVec);
+      this.tokenPreviousSteps.set(token.id, token.steps_taken);
     });
 
     // Update Valid Moves Glow Highlight Rings
@@ -344,11 +352,35 @@ export class Ludo3DEngine {
     // Update Orbit Controls
     this.controls.update();
 
-    // Smooth Lerp Pawn Movement
+    // Step-by-Step Hopping Pawn Movement Animation
     this.pawnMeshes.forEach((mesh, id) => {
-      const target = this.pawnTargetPositions.get(id);
-      if (target) {
-        mesh.position.lerp(target, 0.18);
+      const waypoints = this.pawnWaypoints.get(id);
+
+      if (waypoints && waypoints.length > 0) {
+        const currentTarget = waypoints[0];
+        const dist = mesh.position.distanceTo(currentTarget);
+
+        // Smooth X/Z position movement towards waypoint
+        mesh.position.x += (currentTarget.x - mesh.position.x) * 0.28;
+        mesh.position.z += (currentTarget.z - mesh.position.z) * 0.28;
+
+        // Vertical hopping arc effect
+        const progress = Math.min(1.0, 1.0 - (dist / 1.2));
+        mesh.position.y = currentTarget.y + Math.sin(progress * Math.PI) * 0.35;
+
+        if (dist < 0.12) {
+          mesh.position.copy(currentTarget);
+          waypoints.shift();
+          sounds.playStep();
+          if (waypoints.length === 0) {
+            this.pawnTargetPositions.set(id, currentTarget);
+          }
+        }
+      } else {
+        const target = this.pawnTargetPositions.get(id);
+        if (target) {
+          mesh.position.lerp(target, 0.18);
+        }
       }
     });
 
