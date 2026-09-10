@@ -31,7 +31,8 @@ export class Ludo3DEngine {
     // 1. Scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0f172a);
-    this.scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+    // Remove fog to prevent distance darkening/shadow gradients on board
+    this.scene.fog = null;
 
     // 2. Camera (Isometric Top-Angled View)
     this.camera = new THREE.PerspectiveCamera(
@@ -51,13 +52,17 @@ export class Ludo3DEngine {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
-    // 4. Orbit Controls (Mouse Orbit / Rotate / Pan / Zoom)
+    // 4. Orbit Controls (Mouse & Touch Orbit / Rotate / Pan / Zoom)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.maxPolarAngle = Math.PI / 2.15; // Prevent camera going below floor
     this.controls.minDistance = 6;
-    this.controls.maxDistance = 40;
+    this.controls.maxDistance = 45;
+    this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+    // Set responsive camera position based on screen aspect ratio
+    this.updateCameraAspect();
 
     // 5. Lighting
     this.setupLighting();
@@ -76,30 +81,29 @@ export class Ludo3DEngine {
   }
 
   private setupLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    // 1. Clean Natural Ambient Light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
     this.scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    dirLight.position.set(12, 20, 12);
+    // 2. Overhead Main Key Light (Soft shadows, wide bounds so shadow edge never clips board)
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
+    dirLight.position.set(12, 25, 8);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 50;
-    dirLight.shadow.camera.left = -10;
-    dirLight.shadow.camera.right = 10;
-    dirLight.shadow.camera.top = 10;
-    dirLight.shadow.camera.bottom = -10;
+    dirLight.shadow.camera.far = 60;
+    dirLight.shadow.camera.left = -30;
+    dirLight.shadow.camera.right = 30;
+    dirLight.shadow.camera.top = 30;
+    dirLight.shadow.camera.bottom = -30;
+    dirLight.shadow.bias = -0.0005;
     this.scene.add(dirLight);
 
-    // Subtle colored point lights for ambiance
-    const redLight = new THREE.PointLight(0xef4444, 0.8, 15);
-    redLight.position.set(-6, 3, -6);
-    this.scene.add(redLight);
-
-    const blueLight = new THREE.PointLight(0x3b82f6, 0.8, 15);
-    blueLight.position.set(6, 3, 6);
-    this.scene.add(blueLight);
+    // 3. Front Fill Light (Ensures 100% of board front/bottom face is illuminated)
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
+    fillLight.position.set(0, 12, 18);
+    this.scene.add(fillLight);
   }
 
   private buildBoard(): void {
@@ -126,8 +130,8 @@ export class Ludo3DEngine {
       map: baseColorTex,
       normalMap: normalTex,
       roughnessMap: roughnessTex,
-      roughness: 0.25,
-      metalness: 0.05
+      roughness: 0.75,
+      metalness: 0.0
     });
 
     const topMesh = new THREE.Mesh(topGeo, topMat);
@@ -138,7 +142,7 @@ export class Ludo3DEngine {
 
     // 3. Beveled Outer Rim
     const rimGeo = new THREE.BoxGeometry(15.6, 0.6, 15.6);
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.75 });
     const rimMesh = new THREE.Mesh(rimGeo, rimMat);
     rimMesh.position.set(0, -0.1, 0);
     this.scene.add(rimMesh);
@@ -181,7 +185,7 @@ export class Ludo3DEngine {
       if (i === 6) { drawDot(l, l); drawDot(r, l); drawDot(l, c); drawDot(r, c); drawDot(l, r); drawDot(r, r); }
 
       const tex = new THREE.CanvasTexture(canvas);
-      materials.push(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.2 }));
+      materials.push(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.0 }));
     }
 
     this.diceMesh = new THREE.Mesh(diceGeo, materials);
@@ -236,8 +240,8 @@ export class Ludo3DEngine {
         const pawnGeo = new THREE.CylinderGeometry(0.32, 0.45, 1.0, 24);
         const pawnMat = new THREE.MeshStandardMaterial({
           color: colorHexMap[token.color] || 0xffffff,
-          roughness: 0.25,
-          metalness: 0.2
+          roughness: 0.65,
+          metalness: 0.0
         });
 
         mesh = new THREE.Mesh(pawnGeo, pawnMat);
@@ -362,9 +366,21 @@ export class Ludo3DEngine {
     this.renderer.render(this.scene, this.camera);
   }
 
-  private onWindowResize(): void {
-    this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
+  private updateCameraAspect(): void {
+    const aspect = this.container.clientWidth / this.container.clientHeight;
+    this.camera.aspect = aspect;
+
+    // Adjust camera distance dynamically for mobile portrait screens (aspect < 1.0)
+    if (aspect < 1.0) {
+      const zoomFactor = Math.max(1.0, 1.25 / aspect);
+      this.camera.position.set(0, 16 * zoomFactor, 14 * zoomFactor);
+    }
+
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+  }
+
+  private onWindowResize(): void {
+    this.updateCameraAspect();
   }
 }

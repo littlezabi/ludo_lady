@@ -2,16 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ludo Lady 3D Web Application</title>
   <style>
     :root {
       --bg-dark: #090d16;
-      --panel-bg: rgba(30, 41, 59, 0.75);
+      --panel-bg: rgba(30, 41, 59, 0.85);
       --accent: #38bdf8;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --border-color: rgba(255, 255, 255, 0.1);
+      --border-color: rgba(255, 255, 255, 0.12);
     }
 
     * {
@@ -19,15 +19,21 @@
       margin: 0;
       padding: 0;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
-    body {
+    html, body {
       background: var(--bg-dark);
       color: var(--text-main);
       height: 100vh;
+      height: 100dvh;
+      width: 100vw;
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      position: fixed;
     }
 
     #loading-overlay {
@@ -57,36 +63,56 @@
     }
 
     header {
-      padding: 1rem 1.5rem;
+      padding: 0.75rem 1.25rem;
       background: var(--panel-bg);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border-color);
       display: flex;
       justify-content: space-between;
       align-items: center;
       z-index: 100;
+      flex-wrap: wrap;
+      gap: 0.5rem;
     }
 
     .logo {
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 800;
       background: linear-gradient(135deg, #38bdf8, #818cf8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
     }
 
     .turn-badge {
-      padding: 0.4rem 1rem;
+      padding: 0.35rem 0.85rem;
       border-radius: 9999px;
       font-weight: 700;
-      font-size: 0.9rem;
+      font-size: 0.825rem;
       border: 1.5px solid currentColor;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+
+    .room-panel {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    input, select {
+      background: #0f172a;
+      color: white;
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 0.6rem;
+      border-radius: 0.5rem;
+      font-size: 0.8rem;
+      outline: none;
     }
 
     #canvas-container {
@@ -94,55 +120,75 @@
       width: 100%;
       height: 100%;
       position: relative;
+      touch-action: none;
+    }
+
+    #canvas-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+      touch-action: none;
     }
 
     .control-bar {
       position: absolute;
-      bottom: 2rem;
+      bottom: 1.5rem;
       left: 50%;
       transform: translateX(-50%);
       background: var(--panel-bg);
-      backdrop-filter: blur(16px);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border: 1px solid var(--border-color);
-      border-radius: 1.5rem;
-      padding: 1rem 2rem;
+      border-radius: 1.25rem;
+      padding: 0.75rem 1.5rem;
       display: flex;
       align-items: center;
-      gap: 1.5rem;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      gap: 1rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
       z-index: 100;
+      max-width: 95vw;
     }
 
     .dice-box {
-      width: 56px;
-      height: 56px;
+      width: 48px;
+      height: 48px;
       background: #1e293b;
       border: 2px solid var(--accent);
-      border-radius: 1rem;
+      border-radius: 0.75rem;
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 1.75rem;
+      font-size: 1.5rem;
       font-weight: 800;
       color: var(--accent);
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+      flex-shrink: 0;
     }
 
     .btn-roll {
       background: linear-gradient(135deg, #0284c7, #38bdf8);
       color: #0f172a;
       border: none;
-      padding: 0.85rem 2rem;
-      border-radius: 1rem;
-      font-size: 1.1rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.85rem;
+      font-size: 1rem;
       font-weight: 800;
       cursor: pointer;
       transition: transform 0.15s, box-shadow 0.15s;
+      white-space: nowrap;
+      min-height: 44px;
+      min-width: 120px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
 
     .btn-roll:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: 0 10px 25px rgba(56, 189, 248, 0.4);
+    }
+
+    .btn-roll:active:not(:disabled) {
+      transform: translateY(0);
     }
 
     .btn-roll:disabled {
@@ -151,53 +197,77 @@
     }
 
     .action-log {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       color: var(--text-muted);
-      max-width: 250px;
+      max-width: 180px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .room-panel {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    input, select {
-      background: #0f172a;
-      color: white;
-      border: 1px solid var(--border-color);
-      padding: 0.4rem 0.75rem;
-      border-radius: 0.5rem;
-      font-size: 0.85rem;
-    }
-
     .modal {
       position: fixed;
       inset: 0;
-      background: rgba(9, 13, 22, 0.85);
+      background: rgba(9, 13, 22, 0.88);
       backdrop-filter: blur(12px);
       display: none;
       justify-content: center;
       align-items: center;
       z-index: 1000;
+      padding: 1rem;
     }
 
     .modal-card {
       background: #1e293b;
       border: 1px solid var(--border-color);
-      padding: 2.5rem;
-      border-radius: 1.5rem;
+      padding: 2rem;
+      border-radius: 1.25rem;
       text-align: center;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+      max-width: 90vw;
     }
 
     .modal-card h2 {
-      font-size: 2rem;
-      margin-bottom: 1.5rem;
+      font-size: 1.75rem;
+      margin-bottom: 1.25rem;
       color: #38bdf8;
+    }
+
+    /* Mobile Responsive Breakpoints */
+    @media (max-width: 640px) {
+      header {
+        padding: 0.5rem 0.75rem;
+      }
+      .logo {
+        font-size: 1rem;
+      }
+      .turn-badge {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.75rem;
+      }
+      .control-bar {
+        bottom: 1rem;
+        padding: 0.5rem 0.85rem;
+        gap: 0.6rem;
+        border-radius: 1rem;
+      }
+      .dice-box {
+        width: 42px;
+        height: 42px;
+        font-size: 1.25rem;
+      }
+      .btn-roll {
+        padding: 0.6rem 1.1rem;
+        font-size: 0.9rem;
+        min-height: 42px;
+        min-width: 100px;
+      }
+      .action-log {
+        display: none; /* Hide log text on mobile portrait to keep controls compact */
+      }
+      input[type="text"] {
+        width: 75px !important;
+      }
     }
   </style>
 </head>
@@ -220,10 +290,10 @@
         <option value="3">3 Players</option>
         <option value="2">2 Players</option>
       </select>
-      <button id="btn-new-game" style="background:#334155; color:white; border:none; padding:0.4rem 0.8rem; border-radius:0.5rem; cursor:pointer;">Reset</button>
+      <button id="btn-new-game" style="background:#334155; color:white; border:none; padding:0.35rem 0.65rem; border-radius:0.5rem; cursor:pointer; font-size:0.8rem;">Reset</button>
 
-      <input type="text" id="room-code-input" placeholder="Room Code" style="width: 100px;">
-      <button id="btn-join-room" style="background:#38bdf8; color:#0f172a; border:none; padding:0.4rem 0.8rem; border-radius:0.5rem; font-weight:700; cursor:pointer;">Join Sync</button>
+      <input type="text" id="room-code-input" placeholder="Room Code" style="width: 90px;">
+      <button id="btn-join-room" style="background:#38bdf8; color:#0f172a; border:none; padding:0.35rem 0.65rem; border-radius:0.5rem; font-weight:700; cursor:pointer; font-size:0.8rem;">Sync</button>
     </div>
   </header>
 
