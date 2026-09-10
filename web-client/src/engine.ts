@@ -94,23 +94,37 @@ export class Ludo3DEngine {
     const normalTex = textureLoader.load('/assets/textures/board_normal.png');
     const roughnessTex = textureLoader.load('/assets/textures/board_roughness.png');
 
-    const boardGeo = new THREE.BoxGeometry(15, 0.5, 15);
-    const boardMat = new THREE.MeshStandardMaterial({
+    // 1. 3D Base Box (Table Frame)
+    const baseGeo = new THREE.BoxGeometry(15.2, 0.5, 15.2);
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.4,
+      metalness: 0.1
+    });
+    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    baseMesh.position.set(0, 0, 0);
+    baseMesh.receiveShadow = true;
+    this.scene.add(baseMesh);
+
+    // 2. Top Ludo Board Texture Surface Plane
+    const topGeo = new THREE.PlaneGeometry(14.8, 14.8);
+    const topMat = new THREE.MeshStandardMaterial({
       map: baseColorTex,
       normalMap: normalTex,
       roughnessMap: roughnessTex,
-      roughness: 0.35,
-      metalness: 0.1
+      roughness: 0.25,
+      metalness: 0.05
     });
 
-    const boardMesh = new THREE.Mesh(boardGeo, boardMat);
-    boardMesh.position.set(0, 0, 0);
-    boardMesh.receiveShadow = true;
-    this.scene.add(boardMesh);
+    const topMesh = new THREE.Mesh(topGeo, topMat);
+    topMesh.rotation.x = -Math.PI / 2;
+    topMesh.position.set(0, 0.26, 0);
+    topMesh.receiveShadow = true;
+    this.scene.add(topMesh);
 
-    // Board Border Rim
+    // 3. Beveled Outer Rim
     const rimGeo = new THREE.BoxGeometry(15.6, 0.6, 15.6);
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
     const rimMesh = new THREE.Mesh(rimGeo, rimMat);
     rimMesh.position.set(0, -0.1, 0);
     this.scene.add(rimMesh);
