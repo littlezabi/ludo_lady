@@ -24,10 +24,10 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
     ];
 
     const corners = [
-      { cx: -4.8, cz: -4.8 },  // Red (0) - Top-Left
-      { cx: 4.8, cz: -4.8 },   // Green (1) - Top-Right
-      { cx: 4.8, cz: 4.8 },    // Yellow (2) - Bottom-Right
-      { cx: -4.8, cz: 4.8 }    // Blue (3) - Bottom-Left
+      { cx: -4.45, cz: -4.45 },  // Red (0) - Top-Left
+      { cx: 4.45, cz: -4.45 },   // Green (1) - Top-Right
+      { cx: 4.45, cz: 4.45 },    // Yellow (2) - Bottom-Right
+      { cx: -4.45, cz: 4.45 }    // Blue (3) - Bottom-Left
     ];
 
     const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
@@ -75,7 +75,7 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
   const trackCoords: { x: number; z: number }[] = [];
 
   // Red Arm (0..12)
-  for (let i = 0; i < 6; i++) trackCoords.push({ x: -5.5 + i * GRID_SCALE, z: -1.2 }); // 0..5
+  for (let i = 0; i < 6; i++) trackCoords.push({ x: -5.4 + i * GRID_SCALE, z: -1.2 }); // 0..5
   for (let i = 0; i < 6; i++) trackCoords.push({ x: -1.2, z: -1.8 - i * GRID_SCALE }); // 6..11
   trackCoords.push({ x: 0, z: -6.5 }); // 12
 
