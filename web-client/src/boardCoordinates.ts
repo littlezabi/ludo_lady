@@ -47,13 +47,13 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
     };
   }
 
-  // 2. Finished Center Positions (999)
+  // 2. Finished Center Positions (999) - Exact Centroids of 4 Colored Home Triangles
   if (positionCode === 999) {
     const centerOffsets = [
-      { x: -0.65, z: -0.65 }, // Red (Top-Left: -X, -Z)
-      { x: 0.65, z: -0.65 },  // Green (Top-Right: +X, -Z)
-      { x: 0.65, z: 0.65 },   // Yellow (Bottom-Right: +X, +Z)
-      { x: -0.65, z: 0.65 }   // Blue (Bottom-Left: -X, +Z)
+      { x: -1.15, z: 0.0 },  // Red (Left Triangle - aligned with row 7 stretch)
+      { x: 0.0, z: -1.15 },  // Green (Top Triangle - aligned with col 7 stretch)
+      { x: 1.15, z: 0.0 },   // Yellow (Right Triangle - aligned with row 7 stretch)
+      { x: 0.0, z: 1.15 }    // Blue (Bottom Triangle - aligned with col 7 stretch)
     ];
 
     const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
