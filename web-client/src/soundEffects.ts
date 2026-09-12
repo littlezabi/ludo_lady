@@ -31,8 +31,8 @@ class SoundManager {
 
   public playPieceEntry() {
     const files = [
-      '/sounds/piece_entry/u_wb4wgxdwxo-boing2-418548.mp3',
-      '/sounds/piece_entry/x_bass6668-funny-meow-110120.mp3'
+      '/sounds/piece_entry/entry_1.mp3',
+      '/sounds/piece_entry/entry_2.mp3'
     ];
     const picked = files[Math.floor(Math.random() * files.length)];
     this.playAudioFile(picked, 0.85);
@@ -40,20 +40,19 @@ class SoundManager {
 
   public playPieceHit() {
     const files = [
-      '/sounds/piece_hit_piece/3dabrar-funny-alarm-317531.mp3',
-      '/sounds/piece_hit_piece/alex_jauk-funny-fart-216687.mp3',
-      '/sounds/piece_hit_piece/digitalstore07-funny-laughing-430381.mp3',
-      '/sounds/piece_hit_piece/ribhavagrawal-funny-african-tabla-230535.mp3',
-      '/sounds/piece_hit_piece/stu9-vocal-funny-362402.mp3',
-      '/sounds/piece_hit_piece/universfield-funny-men-laughing-567230.mp3',
-      '/sounds/piece_hit_piece/x_bass6668-funny-meow-110120.mp3'
+      '/sounds/piece_hit_piece/hit_1.mp3',
+      '/sounds/piece_hit_piece/hit_2.mp3',
+      '/sounds/piece_hit_piece/hit_3.mp3',
+      '/sounds/piece_hit_piece/hit_4.mp3',
+      '/sounds/piece_hit_piece/hit_5.mp3',
+      '/sounds/piece_hit_piece/hit_6.mp3'
     ];
     const picked = files[Math.floor(Math.random() * files.length)];
-    this.playAudioFile(picked, 0.9);
+    this.playAudioFile(picked, 0.95);
   }
 
   public playSnore() {
-    this.playAudioFile('/sounds/you_are_snoring/universfield-funny-snore-250959.mp3', 0.8);
+    this.playAudioFile('/sounds/you_are_snoring/snore_1.mp3', 0.8);
   }
 
   playDiceRoll() {
