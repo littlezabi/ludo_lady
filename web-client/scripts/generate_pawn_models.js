@@ -3,19 +3,14 @@ import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
-function buildHollowPawnGeometry() {
+function buildSolidPawnGeometry() {
   const points = [];
 
-  // 1. Inner Hollow Cavity (Ceiling down to Bottom Opening Rim)
-  points.push(new THREE.Vector2(0.00, 0.82)); // Interior ceiling inside neck/head
-  points.push(new THREE.Vector2(0.16, 0.72)); // Upper cavity wall
-  points.push(new THREE.Vector2(0.23, 0.45)); // Tapered cavity wall
-  points.push(new THREE.Vector2(0.28, 0.22)); // Lower cavity wall
-  points.push(new THREE.Vector2(0.33, 0.05)); // Cavity inner bottom curve
-  points.push(new THREE.Vector2(0.35, 0.00)); // Inner bottom rim
-
-  // 2. Outer Base Lip & Prominent Base Ring
+  // 1. Solid Bottom Base Cap (Floor disc at y = 0.00)
+  points.push(new THREE.Vector2(0.00, 0.00)); // Bottom center
   points.push(new THREE.Vector2(0.44, 0.00)); // Bottom outer edge
+
+  // 2. Base Ring Lip & Vertical Cylinder
   points.push(new THREE.Vector2(0.45, 0.03)); // Base outer lip
   points.push(new THREE.Vector2(0.45, 0.16)); // Vertical base ring cylinder
   points.push(new THREE.Vector2(0.41, 0.20)); // Beveled top of base ring
@@ -45,7 +40,7 @@ function generateObjAndMtl() {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
-  const geometry = buildHollowPawnGeometry();
+  const geometry = buildSolidPawnGeometry();
   const exporter = new OBJExporter();
 
   const colors = [
