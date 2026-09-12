@@ -25,7 +25,7 @@ export class Ludo3DEngine {
   private capturedRewindTokens: Set<number> = new Set();
   private highlightRings: THREE.Mesh[] = [];
   private diceMesh!: THREE.Mesh;
-  private isDiceRolling = false;
+  public isDiceRolling = false;
   private diceTargetRotation = new THREE.Euler();
   private stackIndicatorGroup = new THREE.Group();
   private dirLight!: THREE.DirectionalLight;
@@ -792,6 +792,9 @@ export class Ludo3DEngine {
     // Update Floating Sleep / Snoring Emoji Position
     this.updateSleepEmojiPosition();
 
+    // Update Floating King Crown & Ranking Badges Position
+    this.updateCrownBadges();
+
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -1065,6 +1068,64 @@ export class Ludo3DEngine {
 
     this.sleepEmojiElement.style.left = `${screenX}px`;
     this.sleepEmojiElement.style.top = `${screenY}px`;
+  }
+
+  public updateCrownBadges(): void {
+    let container = document.getElementById('crown-overlay-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'crown-overlay-container';
+      container.style.position = 'absolute';
+      container.style.inset = '0';
+      container.style.pointerEvents = 'none';
+      container.style.zIndex = '160';
+      container.style.overflow = 'hidden';
+      this.container.appendChild(container);
+    }
+
+    container.innerHTML = '';
+
+    if (!this.lastGameState) return;
+
+    const ranks = this.lastGameState.winners_rank || (this.lastGameState.winner !== null ? [this.lastGameState.winner] : []);
+    if (!ranks || ranks.length === 0) return;
+
+    const homeCorners = [
+      new THREE.Vector3(-4.45, 2.5, -4.45), // Red (0)
+      new THREE.Vector3(4.45, 2.5, -4.45),  // Green (1)
+      new THREE.Vector3(4.45, 2.5, 4.45),   // Yellow (2)
+      new THREE.Vector3(-4.45, 2.5, 4.45)   // Blue (3)
+    ];
+
+    const animTime = performance.now() * 0.003;
+    const rankLabels = ['👑 1st KING', '🥈 2nd', '🥉 3rd', '4th'];
+
+    ranks.forEach((playerIdx, rankIdx) => {
+      const safeIdx = Math.max(0, Math.floor(playerIdx)) % 4;
+      const corner = homeCorners[safeIdx];
+      if (!corner) return;
+
+      const worldPos = corner.clone();
+      worldPos.y += Math.sin(animTime * 3 + safeIdx) * 0.15; // Gentle floating bobbing
+
+      const vector = worldPos.clone();
+      vector.project(this.camera);
+
+      const canvas = this.renderer.domElement;
+      const widthHalf = canvas.clientWidth / 2;
+      const heightHalf = canvas.clientHeight / 2;
+
+      const screenX = (vector.x * widthHalf) + widthHalf;
+      const screenY = -(vector.y * heightHalf) + heightHalf;
+
+      const badge = document.createElement('div');
+      badge.className = `crown-badge rank-${Math.min(3, rankIdx + 1)}`;
+      badge.style.left = `${screenX}px`;
+      badge.style.top = `${screenY}px`;
+      badge.innerHTML = `<span>${rankLabels[rankIdx] || 'Finished'}</span>`;
+
+      container.appendChild(badge);
+    });
   }
 
   private updateCameraAspect(): void {

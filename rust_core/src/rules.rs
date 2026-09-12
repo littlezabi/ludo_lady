@@ -13,6 +13,10 @@ pub struct GameState {
     pub last_action: String,
     #[serde(default)]
     pub is_team_mode: bool, // 2v2 Partnership Mode (Red+Yellow vs Green+Blue)
+    #[serde(default)]
+    pub winners_rank: Vec<u8>, // Ranking order of players as they finish (0: Red, 1: Green, 2: Yellow, 3: Blue)
+    #[serde(default)]
+    pub is_game_over: bool, // True only when the entire match is finished for all active players
 }
 
 impl GameState {
@@ -36,11 +40,18 @@ impl GameState {
             tokens,
             last_action: "Game initialized".to_string(),
             is_team_mode: false,
+            winners_rank: Vec::new(),
+            is_game_over: false,
         }
     }
 
     pub fn roll_dice(&mut self) -> u8 {
-        if self.winner.is_some() {
+        if self.is_game_over {
+            return self.dice_roll;
+        }
+
+        // Strict Turn Lock: If dice was already rolled and player has valid moves, DO NOT re-roll! Force player to move first!
+        if self.dice_roll > 0 && !self.get_valid_tokens().is_empty() {
             return self.dice_roll;
         }
 
@@ -79,7 +90,7 @@ impl GameState {
     }
 
     pub fn get_valid_tokens(&self) -> Vec<u8> {
-        if self.dice_roll == 0 || self.winner.is_some() {
+        if self.dice_roll == 0 || self.is_game_over {
             return Vec::new();
         }
 
@@ -119,7 +130,7 @@ impl GameState {
     }
 
     pub fn move_token(&mut self, token_id: u8) -> bool {
-        if self.dice_roll == 0 || self.winner.is_some() {
+        if self.dice_roll == 0 || self.is_game_over {
             return false;
         }
 
@@ -224,17 +235,39 @@ impl GameState {
             }
         }
 
-        // Check Win Condition
-        if self.check_winner(current_player) {
-            self.winner = Some(current_player);
-            if self.is_team_mode {
-                let team_name = if current_player % 2 == 0 { "RED & YELLOW" } else { "GREEN & BLUE" };
-                self.last_action = format!("🎉 TEAM {} HAS WON THE GAME!", team_name);
-            } else {
-                self.last_action = format!("🎉 PLAYER {} HAS WON THE GAME!", current_player);
+        // Check player/team completion status
+        let target_p_idx = color as u8;
+        if self.is_player_finished(target_p_idx) && !self.winners_rank.contains(&target_p_idx) {
+            self.winners_rank.push(target_p_idx);
+            if self.winner.is_none() {
+                self.winner = Some(target_p_idx);
             }
-            self.dice_roll = 0;
-            return true;
+
+            let rank = self.winners_rank.len();
+            let rank_names = ["1st 👑", "2nd 🥈", "3rd 🥉", "4th"];
+            let r_name = rank_names.get(rank - 1).unwrap_or(&"Finished");
+            let turn_colors = ["Red", "Green", "Yellow", "Blue"];
+
+            self.last_action = format!(
+                "👑 {} HAS FINISHED IN {} PLACE! Match continues for remaining players...",
+                turn_colors[target_p_idx as usize], r_name
+            );
+
+            // Check if match is fully complete (all players finished, or only 1 active remaining)
+            let active_remaining = (0..self.num_players)
+                .filter(|&p| !self.is_player_finished(p))
+                .count();
+
+            if active_remaining <= 1 {
+                self.is_game_over = true;
+                self.dice_roll = 0;
+                let champ_idx = self.winners_rank[0] as usize;
+                self.last_action = format!(
+                    "🎉 MATCH COMPLETE! {} is the 👑 Champion!",
+                    turn_colors[champ_idx]
+                );
+                return true;
+            }
         }
 
         // Reset dice roll for next action
@@ -250,20 +283,36 @@ impl GameState {
     }
 
     fn next_turn(&mut self) {
-        self.current_turn = (self.current_turn + 1) % self.num_players;
         self.dice_roll = 0;
+        if self.is_game_over {
+            return;
+        }
+
+        let mut count = 0;
+        while count < self.num_players {
+            self.current_turn = (self.current_turn + 1) % self.num_players;
+            count += 1;
+
+            if !self.is_player_finished(self.current_turn) {
+                break;
+            }
+        }
+    }
+
+    pub fn is_player_finished(&self, player_idx: u8) -> bool {
+        let color = PlayerColor::from_idx(player_idx);
+        let own_finished = self.tokens.iter().filter(|t| t.color == color).all(|t| t.is_finished());
+
+        if self.is_team_mode && own_finished {
+            let teammate_color = PlayerColor::from_idx((player_idx + 2) % 4);
+            let teammate_finished = self.tokens.iter().filter(|t| t.color == teammate_color).all(|t| t.is_finished());
+            return teammate_finished;
+        }
+
+        own_finished
     }
 
     fn check_winner(&self, player_idx: u8) -> bool {
-        if self.is_team_mode {
-            let team_idx = player_idx % 2;
-            let color1 = PlayerColor::from_idx(team_idx);
-            let color2 = PlayerColor::from_idx(team_idx + 2);
-            let mut team_tokens = self.tokens.iter().filter(|t| t.color == color1 || t.color == color2);
-            team_tokens.all(|t| t.is_finished())
-        } else {
-            let mut player_tokens = self.tokens.iter().filter(|t| t.color == PlayerColor::from_idx(player_idx));
-            player_tokens.all(|t| t.is_finished())
-        }
+        self.is_player_finished(player_idx)
     }
 }

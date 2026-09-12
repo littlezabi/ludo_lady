@@ -16,6 +16,8 @@ export interface GameState {
   tokens: TokenState[];
   last_action: String;
   is_team_mode?: boolean;
+  winners_rank?: number[];
+  is_game_over?: boolean;
 }
 
 let isInitialized = false;
