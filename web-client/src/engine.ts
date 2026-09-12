@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GameState, TokenState } from './wasmLoader';
-import { getTile3DPosition, getStepByStepPath } from './boardCoordinates';
+import { getTile3DPosition, getStepByStepPath, getReverseStepByStepPath } from './boardCoordinates';
 import { sounds } from './soundEffects';
 
 export type CameraViewMode = 'free' | 'top' | 'home' | 'active_turn';
@@ -488,7 +488,10 @@ export class Ludo3DEngine {
 
       // Detect hit/capture: token was active on board (prevPos !== -1) and now sent back to home base (position === -1)
       if (prevPos !== -1 && token.position === -1) {
-        this.pawnWaypoints.delete(token.id);
+        const reversePoints = getReverseStepByStepPath(colorIdx, prevSteps > 0 ? prevSteps : 1, token.id);
+        const waypointsVec = reversePoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+
+        this.pawnWaypoints.set(token.id, waypointsVec);
         this.capturedRewindTokens.add(token.id);
         this.pawnTargetPositions.set(token.id, targetVec);
       } else if (token.steps_taken > prevSteps && prevSteps !== -1) {
@@ -736,43 +739,45 @@ export class Ludo3DEngine {
       this.controls.update();
     }
 
-    // Direct Drag Rewind for Captured Pawns or Hopping Path Animation
+    // Step-by-Step Hopping or Reverse Backward Track Drag Animation
     this.pawnMeshes.forEach((mesh, id) => {
       const isReverseRewind = this.capturedRewindTokens.has(id);
       const waypoints = this.pawnWaypoints.get(id);
 
-      if (isReverseRewind) {
-        const target = this.pawnTargetPositions.get(id);
-        if (target) {
-          const dist = mesh.position.distanceTo(target);
-          // Rapid direct sliding drag straight to home base tile
-          const speed = 0.35;
-          mesh.position.x += (target.x - mesh.position.x) * speed;
-          mesh.position.z += (target.z - mesh.position.z) * speed;
-          mesh.position.y = 0.28; // Slide flat on board surface
-
-          if (dist < 0.12) {
-            mesh.position.copy(target);
-            this.capturedRewindTokens.delete(id);
-          }
-        }
-      } else if (waypoints && waypoints.length > 0) {
-        // Standard forward hopping step animation
+      if (waypoints && waypoints.length > 0) {
         const currentTarget = waypoints[0];
         const dist = mesh.position.distanceTo(currentTarget);
 
-        mesh.position.x += (currentTarget.x - mesh.position.x) * 0.28;
-        mesh.position.z += (currentTarget.z - mesh.position.z) * 0.28;
+        if (isReverseRewind) {
+          // Fast smooth sliding drag along track blocks in reverse
+          const speed = 0.42; // Rapid smooth sliding speed per track cell
+          mesh.position.x += (currentTarget.x - mesh.position.x) * speed;
+          mesh.position.z += (currentTarget.z - mesh.position.z) * speed;
+          mesh.position.y = 0.28; // Slide flat on track surface
 
-        const progress = Math.min(1.0, 1.0 - (dist / 1.2));
-        mesh.position.y = currentTarget.y + Math.sin(progress * Math.PI) * 0.35;
+          if (dist < 0.15) {
+            mesh.position.copy(currentTarget);
+            waypoints.shift();
+            if (waypoints.length === 0) {
+              this.capturedRewindTokens.delete(id);
+              this.pawnTargetPositions.set(id, currentTarget);
+            }
+          }
+        } else {
+          // Standard forward hopping step animation
+          mesh.position.x += (currentTarget.x - mesh.position.x) * 0.28;
+          mesh.position.z += (currentTarget.z - mesh.position.z) * 0.28;
 
-        if (dist < 0.12) {
-          mesh.position.copy(currentTarget);
-          waypoints.shift();
-          sounds.playStep();
-          if (waypoints.length === 0) {
-            this.pawnTargetPositions.set(id, currentTarget);
+          const progress = Math.min(1.0, 1.0 - (dist / 1.2));
+          mesh.position.y = currentTarget.y + Math.sin(progress * Math.PI) * 0.35;
+
+          if (dist < 0.12) {
+            mesh.position.copy(currentTarget);
+            waypoints.shift();
+            sounds.playStep();
+            if (waypoints.length === 0) {
+              this.pawnTargetPositions.set(id, currentTarget);
+            }
           }
         }
       } else {

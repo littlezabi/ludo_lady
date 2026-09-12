@@ -1323,13 +1323,31 @@
     </div>
   </div>
 
-  <!-- Winner Modal -->
+  <!-- Game Over & Leaderboard Congratulation Modal -->
   <div class="modal" id="winner-modal">
-    <div class="modal-card">
-      <h2 id="winner-text">🎉 PLAYER WON!</h2>
-      <button id="btn-winner-re-open-menu" style="background:#38bdf8; color:#0f172a; border:none; padding:0.75rem 2rem; border-radius:0.75rem; font-size:1.1rem; font-weight:800; cursor:pointer;">
-        Main Menu
-      </button>
+    <div class="modal-card" style="max-width: 480px; text-align: center; display: flex; flex-direction: column; gap: 1.25rem;">
+      <div>
+        <div style="font-size: 3rem; margin-bottom: 0.25rem;">🏆</div>
+        <h2 id="winner-text" style="font-size: 1.8rem; font-weight: 900; background: linear-gradient(135deg, #eab308, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          MATCH COMPLETED!
+        </h2>
+        <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.2rem;">Final Leaderboard & Player Rankings</div>
+      </div>
+
+      <!-- Dynamic Leaderboard Rankings -->
+      <div id="winner-rankings-list" style="display: flex; flex-direction: column; gap: 0.6rem;">
+        <!-- Injected dynamically by JS -->
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 0.75rem; width: 100%; margin-top: 0.5rem;">
+        <button id="btn-winner-restart" class="btn-primary-action" style="flex: 1; background: linear-gradient(135deg, #22c55e, #16a34a); color: #0f172a;">
+          🔄 Restart
+        </button>
+        <button id="btn-winner-ok" class="btn-secondary-action" style="flex: 1;">
+          🏠 OK (Menu)
+        </button>
+      </div>
     </div>
   </div>
 

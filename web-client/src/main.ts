@@ -11,6 +11,13 @@ let roomCode: string | null = null;
 let generatedRoomCode: string = '';
 let isDebugModeEnabled: boolean = localStorage.getItem('ludo_debug_mode') !== 'false';
 
+let currentMatchConfig = {
+  isVsComputer: false,
+  numPlayers: 4,
+  isTeamMode: false,
+  computerCount: 3
+};
+
 let lastTurnActionTime: number = Date.now();
 let isSnoringActive: boolean = false;
 let trackedTurnIdx: number = 0;
@@ -211,6 +218,7 @@ function setupMenuControls() {
     const numPlayers = parseInt(select.value, 10);
     const isTeamMode = selectedGameMode === 'team';
 
+    currentMatchConfig = { isVsComputer: false, numPlayers, isTeamMode, computerCount: 0 };
     roomCode = generatedRoomCode;
     gameState = newGame(numPlayers, isTeamMode);
     validTokenIds = [];
@@ -270,6 +278,7 @@ function setupMenuControls() {
     const computerCount = parseInt(select ? select.value : '3', 10);
     const numPlayers = computerCount === 1 ? 2 : 4;
 
+    currentMatchConfig = { isVsComputer: true, numPlayers, isTeamMode, computerCount };
     gameState = newGameVsComputer(numPlayers, isTeamMode, computerCount);
     validTokenIds = [];
 
@@ -290,10 +299,14 @@ function setupMenuControls() {
     mainMenuOverlay.classList.remove('hidden');
   });
 
-  document.getElementById('btn-winner-re-open-menu')?.addEventListener('click', () => {
+  document.getElementById('btn-winner-ok')?.addEventListener('click', () => {
     sounds.playClick();
     document.getElementById('winner-modal')!.style.display = 'none';
     mainMenuOverlay.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-winner-restart')?.addEventListener('click', () => {
+    restartCurrentGame();
   });
 }
 
@@ -660,19 +673,11 @@ function updateUI() {
     }
   }
 
-  // Winner Announcement Modal (Shown ONLY when the entire match is finished for all active players!)
+  // Winner & Final Leaderboard Announcement Modal
   const winnerModal = document.getElementById('winner-modal');
   if (winnerModal) {
     if (gameState.is_game_over) {
-      const winnerText = document.getElementById('winner-text')!;
-      if (gameState.is_team_mode) {
-        const winningTeamName = (gameState.winner ?? 0) % 2 === 0 ? "RED & YELLOW (Team A)" : "GREEN & BLUE (Team B)";
-        winnerText.textContent = `🎉 TEAM ${winningTeamName} HAS WON THE MATCH!`;
-      } else {
-        const champIdx = gameState.winners_rank && gameState.winners_rank.length > 0 ? gameState.winners_rank[0] : (gameState.winner ?? 0);
-        const champInfo = getPlayerColorInfo(gameState, champIdx);
-        winnerText.textContent = `🎉 PLAYER ${champInfo.name} IS THE 👑 CHAMPION!`;
-      }
+      renderWinnerLeaderboard();
       winnerModal.style.display = 'flex';
     } else {
       winnerModal.style.display = 'none';
@@ -707,8 +712,115 @@ function updateUI() {
     btnOpenDebug.style.display = isDebugModeEnabled ? 'flex' : 'none';
   }
 
+  // Auto-schedule turn pass if active player has rolled dice but has NO valid moves possible
+  scheduleAutoPassIfNeeded();
+
   // Auto-schedule Computer AI Turn execution if active player is a bot
   scheduleAITurnIfNeeded();
+}
+
+function restartCurrentGame() {
+  sounds.playClick();
+  const winnerModal = document.getElementById('winner-modal');
+  if (winnerModal) winnerModal.style.display = 'none';
+
+  if (currentMatchConfig.isVsComputer) {
+    gameState = newGameVsComputer(
+      currentMatchConfig.numPlayers,
+      currentMatchConfig.isTeamMode,
+      currentMatchConfig.computerCount
+    );
+  } else {
+    gameState = newGame(
+      currentMatchConfig.numPlayers,
+      currentMatchConfig.isTeamMode
+    );
+  }
+
+  validTokenIds = [];
+  selectedDebugTokenId = null;
+
+  if (roomCode) {
+    broadcastGameState(gameState);
+  }
+
+  updateUI();
+}
+
+function renderWinnerLeaderboard() {
+  const listEl = document.getElementById('winner-rankings-list');
+  if (!listEl || !gameState) return;
+
+  listEl.innerHTML = '';
+
+  const rankMedals = ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place', '🏅 4th Place'];
+  const rankBadges = ['👑 Champion', 'Runner Up', '3rd Place', '4th Place'];
+
+  // Determine ranking order of players
+  let rankedPlayerIndices: number[] = [];
+  if (gameState.winners_rank && gameState.winners_rank.length > 0) {
+    rankedPlayerIndices = [...gameState.winners_rank];
+  } else if (gameState.winner !== null) {
+    rankedPlayerIndices = [gameState.winner];
+  }
+
+  // Include remaining active players in order
+  for (let i = 0; i < gameState.num_players; i++) {
+    if (!rankedPlayerIndices.includes(i)) {
+      rankedPlayerIndices.push(i);
+    }
+  }
+
+  rankedPlayerIndices.forEach((pIdx, position) => {
+    const colorInfo = getPlayerColorInfo(gameState, pIdx);
+    const isBot = gameState.player_types && gameState.player_types[pIdx] === 1;
+    const botTag = isBot ? " (🤖 Bot)" : " (👤 Human)";
+
+    const item = document.createElement('div');
+    item.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1.5px solid ${colorInfo.hex};
+      border-radius: 0.85rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    `;
+
+    item.innerHTML = `
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <span style="font-weight:900; font-size:1.15rem; color:#f8fafc;">${rankMedals[position] || `🏅 ${position + 1}th Place`}</span>
+        <span style="font-weight:800; color:${colorInfo.hex}; font-size:1rem;">${colorInfo.name}${botTag}</span>
+      </div>
+      <span style="font-weight:800; font-size:0.85rem; padding:0.25rem 0.6rem; border-radius:0.5rem; background:${colorInfo.hex}22; color:${colorInfo.hex}; border:1px solid ${colorInfo.hex};">
+        ${rankBadges[position] || `${position + 1}th Place`}
+      </span>
+    `;
+
+    listEl.appendChild(item);
+  });
+}
+
+let autoPassTimeout: any = null;
+
+function scheduleAutoPassIfNeeded() {
+  if (!gameState || gameState.is_game_over) return;
+
+  if (gameState.dice_roll > 0 && validTokenIds.length === 0) {
+    if (autoPassTimeout) return;
+    autoPassTimeout = setTimeout(() => {
+      autoPassTimeout = null;
+      if (gameState && gameState.dice_roll > 0 && getValidMoveTokenIds(gameState).length === 0 && !gameState.is_game_over) {
+        handleRollDice();
+      }
+    }, 900);
+  } else {
+    if (autoPassTimeout) {
+      clearTimeout(autoPassTimeout);
+      autoPassTimeout = null;
+    }
+  }
 }
 
 let aiTurnTimeout: any = null;
