@@ -228,6 +228,7 @@ export class Ludo3DEngine {
 
   public selectedDebugTokenId: number | null = null;
   private sharedPawnGeometry: THREE.BufferGeometry | null = null;
+  private sharedBaseRingGeometry: THREE.BufferGeometry | null = null;
 
   private createHollowPawnGeometry(): THREE.BufferGeometry {
     if (this.sharedPawnGeometry) return this.sharedPawnGeometry;
@@ -268,13 +269,33 @@ export class Ludo3DEngine {
     return latheGeo;
   }
 
+  private createBaseRingGeometry(): THREE.BufferGeometry {
+    if (this.sharedBaseRingGeometry) return this.sharedBaseRingGeometry;
+
+    const points: THREE.Vector2[] = [];
+
+    // Outer Base Ring Profile for Lower Stack Layers (prevents mesh intersection inside upper pawns)
+    points.push(new THREE.Vector2(0.35, 0.00)); // Inner bottom rim
+    points.push(new THREE.Vector2(0.44, 0.00)); // Bottom outer edge
+    points.push(new THREE.Vector2(0.45, 0.03)); // Base outer lip
+    points.push(new THREE.Vector2(0.45, 0.16)); // Vertical base ring cylinder
+    points.push(new THREE.Vector2(0.41, 0.20)); // Beveled top of base ring
+    points.push(new THREE.Vector2(0.33, 0.22)); // Nesting shoulder step
+    points.push(new THREE.Vector2(0.30, 0.22)); // Inner top edge
+
+    const latheGeo = new THREE.LatheGeometry(points, 36);
+    latheGeo.computeVertexNormals();
+    this.sharedBaseRingGeometry = latheGeo;
+    return latheGeo;
+  }
+
   private getStackOffset(subIdx: number, count: number): { x: number; y: number; z: number } {
     if (count <= 1) return { x: 0, y: 0, z: 0 };
-    // Nesting stack offset: each pawn sits on the stopping ledge (y = 0.22) with a micro 3D stagger
+    // Exact nesting height offset (0.22) with zero horizontal distortion
     return {
-      x: subIdx * 0.03,
+      x: 0,
       y: subIdx * 0.22,
-      z: -subIdx * 0.03
+      z: 0
     };
   }
 
@@ -299,9 +320,13 @@ export class Ludo3DEngine {
     state.tokens.forEach((token) => {
       let mesh = this.pawnMeshes.get(token.id);
 
+      // Determine if token is a lower layer in a multi-pawn stack
+      const group = positionGroups.get(token.position);
+      const isLowerLayerInStack = group && group.length > 1 && group.indexOf(token.id) < group.length - 1;
+      const targetGeo = isLowerLayerInStack ? this.createBaseRingGeometry() : this.createHollowPawnGeometry();
+
       if (!mesh) {
         // Create Premium Game-Ready Hollow Stackable Pawn Mesh
-        const pawnGeo = this.createHollowPawnGeometry();
         const pawnMat = new THREE.MeshStandardMaterial({
           color: colorHexMap[token.color] || 0xffffff,
           roughness: 0.35,
@@ -309,13 +334,16 @@ export class Ludo3DEngine {
           side: THREE.DoubleSide
         });
 
-        mesh = new THREE.Mesh(pawnGeo, pawnMat);
+        mesh = new THREE.Mesh(targetGeo, pawnMat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.userData = { tokenId: token.id };
 
         this.scene.add(mesh);
         this.pawnMeshes.set(token.id, mesh);
+      } else if (mesh.geometry !== targetGeo) {
+        // Swap geometry dynamically between full pawn and base ring when stacking/unstacking
+        mesh.geometry = targetGeo;
       }
 
       // Calculate Target 3D Position
@@ -323,7 +351,6 @@ export class Ludo3DEngine {
       let p3d = getTile3DPosition(token.position, token.id, colorIdx);
 
       // Apply 3D Vertical Stacking Offset if multiple pawns share the same board block
-      const group = positionGroups.get(token.position);
       if (group && group.length > 1) {
         const subIdx = group.indexOf(token.id);
         const offset = this.getStackOffset(subIdx, group.length);
