@@ -9,6 +9,7 @@ let validTokenIds: number[] = [];
 let selectedDebugTokenId: number | null = null;
 let roomCode: string | null = null;
 let generatedRoomCode: string = '';
+let isDebugModeEnabled: boolean = localStorage.getItem('ludo_debug_mode') !== 'false';
 
 async function bootstrap() {
   const loadingOverlay = document.getElementById('loading-overlay')!;
@@ -31,9 +32,10 @@ async function bootstrap() {
       handlePawnClick(tokenId);
     });
 
-    // 5. Setup Menu Tabs and Control Listeners
+    // 5. Setup Menu, Config, and Debug Controls
     setupMenuControls();
     setupConfigControls();
+    setupDebugControls();
     setupUIControls();
 
     // 6. Check URL query params for direct room join link (?room=123456)
@@ -228,13 +230,19 @@ function handleRollDice() {
   updateUI();
 }
 
-function moveSelectedTokenDebugForward(tokenId: number) {
+function getTargetDebugTokenId(): number | null {
+  if (selectedDebugTokenId !== null) return selectedDebugTokenId;
+  const currentTurn = gameState.current_turn;
+  const token = gameState.tokens.find(t => Math.floor(t.id / 4) === currentTurn);
+  return token ? token.id : null;
+}
+
+function moveSelectedTokenDebugForward(tokenId: number | null = getTargetDebugTokenId()) {
+  if (!isDebugModeEnabled || tokenId === null) return;
   const token = gameState.tokens.find(t => t.id === tokenId);
   if (!token || token.position === 999) return; // Already finished
 
-  const colorIdxMap: { [key: string]: number } = { Red: 0, Green: 1, Yellow: 2, Blue: 3 };
-  const colorIdx = colorIdxMap[token.color] ?? 0;
-
+  const colorIdx = Math.floor(token.id / 4);
   const startTrackMap = [0, 13, 26, 39];
   const stretchBaseMap = [100, 200, 300, 400];
 
@@ -254,14 +262,196 @@ function moveSelectedTokenDebugForward(tokenId: number) {
   }
 
   token.steps_taken = newSteps;
-  gameState.last_action = `[DEBUG] ${token.color} Pawn #${token.id} moved step ${newSteps}`;
+  gameState.last_action = `[CHEAT] ${token.color} Pawn #${token.id} step +1 -> Pos ${token.position}`;
 
   sounds.playStep();
   updateUI();
 
-  if (roomCode) {
-    broadcastGameState(gameState);
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function moveSelectedTokenDebugBackward(tokenId: number | null = getTargetDebugTokenId()) {
+  if (!isDebugModeEnabled || tokenId === null) return;
+  const token = gameState.tokens.find(t => t.id === tokenId);
+  if (!token || token.position === -1) return;
+
+  const colorIdx = Math.floor(token.id / 4);
+  const startTrackMap = [0, 13, 26, 39];
+  const stretchBaseMap = [100, 200, 300, 400];
+
+  let newSteps = token.steps_taken - 1;
+
+  if (newSteps <= 0) {
+    newSteps = 0;
+    token.position = -1;
+  } else if (newSteps <= 51) {
+    token.position = (startTrackMap[colorIdx] + newSteps - 1) % 52;
+  } else if (newSteps >= 52 && newSteps <= 56) {
+    token.position = stretchBaseMap[colorIdx] + (newSteps - 51);
   }
+
+  token.steps_taken = newSteps;
+  gameState.last_action = `[CHEAT] ${token.color} Pawn #${token.id} step -1 -> Pos ${token.position}`;
+
+  sounds.playStep();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function teleportSelectedTokenToTrack(tokenId: number | null = getTargetDebugTokenId()) {
+  if (!isDebugModeEnabled || tokenId === null) return;
+  const token = gameState.tokens.find(t => t.id === tokenId);
+  if (!token) return;
+
+  const colorIdx = Math.floor(token.id / 4);
+  const startTrackMap = [0, 13, 26, 39];
+
+  token.position = startTrackMap[colorIdx];
+  token.steps_taken = 1;
+  gameState.last_action = `[CHEAT] Teleported ${token.color} Pawn #${token.id} to track start (Pos ${token.position})`;
+
+  sounds.playStep();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function teleportSelectedTokenToStretch(tokenId: number | null = getTargetDebugTokenId()) {
+  if (!isDebugModeEnabled || tokenId === null) return;
+  const token = gameState.tokens.find(t => t.id === tokenId);
+  if (!token) return;
+
+  const colorIdx = Math.floor(token.id / 4);
+  const stretchBaseMap = [100, 200, 300, 400];
+
+  token.position = stretchBaseMap[colorIdx] + 1;
+  token.steps_taken = 52;
+  gameState.last_action = `[CHEAT] Teleported ${token.color} Pawn #${token.id} to home stretch (Pos ${token.position})`;
+
+  sounds.playStep();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function teleportSelectedTokenToFinish(tokenId: number | null = getTargetDebugTokenId()) {
+  if (!isDebugModeEnabled || tokenId === null) return;
+  const token = gameState.tokens.find(t => t.id === tokenId);
+  if (!token) return;
+
+  token.position = 999;
+  token.steps_taken = 57;
+  gameState.last_action = `[CHEAT] Teleported ${token.color} Pawn #${token.id} to finish (999)`;
+
+  sounds.playStep();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function teleportSelectedTokenToBase(tokenId: number | null = getTargetDebugTokenId()) {
+  if (!isDebugModeEnabled || tokenId === null) return;
+  const token = gameState.tokens.find(t => t.id === tokenId);
+  if (!token) return;
+
+  token.position = -1;
+  token.steps_taken = 0;
+  gameState.last_action = `[CHEAT] Reset ${token.color} Pawn #${token.id} to home base (-1)`;
+
+  sounds.playStep();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function forceSetDiceRoll(val: number) {
+  if (!isDebugModeEnabled || gameState.winner !== null) return;
+
+  gameState.dice_roll = val;
+  validTokenIds = getValidMoveTokenIds(gameState);
+  engine.triggerDiceAnimation(val);
+
+  gameState.last_action = `[CHEAT] Force set dice roll to ${val}`;
+  sounds.playClick();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function setupInstantHitCheat() {
+  if (!isDebugModeEnabled) return;
+
+  const currentTurn = gameState.current_turn;
+  const startTrackMap = [0, 13, 26, 39];
+
+  // 1. Find hitter pawn
+  let hitterPawn = gameState.tokens.find(t => t.id === selectedDebugTokenId && Math.floor(t.id / 4) === currentTurn);
+  if (!hitterPawn) {
+    hitterPawn = gameState.tokens.find(t => Math.floor(t.id / 4) === currentTurn);
+  }
+
+  if (!hitterPawn) return;
+
+  // 2. Find opponent pawn on track
+  let opponentPawn = gameState.tokens.find(t => Math.floor(t.id / 4) !== currentTurn && t.position >= 0 && t.position < 52);
+
+  // If no opponent pawn is on track, spawn an opponent pawn onto track
+  if (!opponentPawn) {
+    opponentPawn = gameState.tokens.find(t => Math.floor(t.id / 4) !== currentTurn);
+    if (opponentPawn) {
+      const oppColorIdx = Math.floor(opponentPawn.id / 4);
+      opponentPawn.position = (startTrackMap[oppColorIdx] + 5) % 52;
+      opponentPawn.steps_taken = 6;
+    }
+  }
+
+  if (!opponentPawn) return;
+
+  // 3. Place hitter pawn 1 step behind opponent pawn
+  const targetTrackPos = opponentPawn.position;
+  const newHitterPos = (targetTrackPos - 1 + 52) % 52;
+
+  const hitterStartTrack = startTrackMap[currentTurn];
+  let newSteps = ((newHitterPos - hitterStartTrack + 52) % 52) + 1;
+  if (newSteps <= 0) newSteps = 1;
+
+  hitterPawn.position = newHitterPos;
+  hitterPawn.steps_taken = newSteps;
+
+  // 4. Force dice roll to 1
+  gameState.dice_roll = 1;
+  validTokenIds = getValidMoveTokenIds(gameState);
+
+  selectedDebugTokenId = hitterPawn.id;
+  engine.selectedDebugTokenId = hitterPawn.id;
+
+  gameState.last_action = `[CHEAT] Instant Hit Ready! ${hitterPawn.color} Pawn #${hitterPawn.id} placed 1 tile behind ${opponentPawn.color} Pawn #${opponentPawn.id}. Click pawn to HIT!`;
+  sounds.playClick();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function setTurnTo(turnIdx: number) {
+  if (!isDebugModeEnabled) return;
+  const turnNames = ['Red', 'Green', 'Yellow', 'Blue'];
+
+  gameState.current_turn = turnIdx % gameState.num_players;
+  gameState.dice_roll = 0;
+  validTokenIds = [];
+
+  gameState.last_action = `[CHEAT] Turn changed to ${turnNames[gameState.current_turn]}`;
+  sounds.playClick();
+  updateUI();
+
+  if (roomCode) broadcastGameState(gameState);
+}
+
+function skipTurn() {
+  if (!isDebugModeEnabled) return;
+  const nextTurn = (gameState.current_turn + 1) % gameState.num_players;
+  setTurnTo(nextTurn);
 }
 
 function handlePawnClick(tokenId: number) {
@@ -348,17 +538,184 @@ function updateUI() {
     winnerText.textContent = `🎉 PLAYER ${turnColors[gameState.winner]} HAS WON!`;
     winnerModal.style.display = 'flex';
   }
+
+  // Update Developer Debug Status Banner
+  const debugPawnLabel = document.getElementById('debug-selected-pawn-label');
+  const debugPawnPosInfo = document.getElementById('debug-pawn-pos-info');
+  if (debugPawnLabel && debugPawnPosInfo) {
+    if (selectedDebugTokenId !== null) {
+      const token = gameState.tokens.find(t => t.id === selectedDebugTokenId);
+      if (token) {
+        debugPawnLabel.textContent = `${token.color} Pawn #${token.id}`;
+        debugPawnPosInfo.textContent = `Pos: ${token.position} (Steps: ${token.steps_taken})`;
+      }
+    } else {
+      debugPawnLabel.textContent = 'None (Click any 3D piece on board)';
+      debugPawnPosInfo.textContent = 'Position: -';
+    }
+  }
+
+  // Update Header Cheats Button display
+  const btnOpenDebug = document.getElementById('btn-open-debug');
+  if (btnOpenDebug) {
+    btnOpenDebug.style.display = isDebugModeEnabled ? 'flex' : 'none';
+  }
 }
 
 function setupUIControls() {
   document.getElementById('btn-roll')?.addEventListener('click', handleRollDice);
+}
 
-  // Debug Right Arrow Key Step Forward Listener
+function setupDebugControls() {
+  const debugModal = document.getElementById('debug-panel-modal')!;
+  const btnOpenDebug = document.getElementById('btn-open-debug')!;
+  const btnOpenDebugFromConfig = document.getElementById('btn-open-debug-from-config')!;
+  const btnCloseDebug = document.getElementById('btn-close-debug')!;
+
+  const configDebugToggle = document.getElementById('config-debug-toggle') as HTMLInputElement;
+  const debugEnableToggle = document.getElementById('debug-enable-toggle') as HTMLInputElement;
+
+  const syncDebugToggles = (enabled: boolean) => {
+    isDebugModeEnabled = enabled;
+    localStorage.setItem('ludo_debug_mode', enabled ? 'true' : 'false');
+    if (configDebugToggle) configDebugToggle.checked = enabled;
+    if (debugEnableToggle) debugEnableToggle.checked = enabled;
+    if (btnOpenDebug) btnOpenDebug.style.display = enabled ? 'flex' : 'none';
+  };
+
+  if (configDebugToggle) {
+    configDebugToggle.checked = isDebugModeEnabled;
+    configDebugToggle.addEventListener('change', () => {
+      sounds.playClick();
+      syncDebugToggles(configDebugToggle.checked);
+    });
+  }
+
+  if (debugEnableToggle) {
+    debugEnableToggle.checked = isDebugModeEnabled;
+    debugEnableToggle.addEventListener('change', () => {
+      sounds.playClick();
+      syncDebugToggles(debugEnableToggle.checked);
+    });
+  }
+
+  const openDebugModal = () => {
+    if (!isDebugModeEnabled) return;
+    sounds.playClick();
+    debugModal.style.display = 'flex';
+  };
+
+  const closeDebugModal = () => {
+    sounds.playClick();
+    debugModal.style.display = 'none';
+  };
+
+  btnOpenDebug?.addEventListener('click', openDebugModal);
+  btnOpenDebugFromConfig?.addEventListener('click', () => {
+    const configModal = document.getElementById('config-modal');
+    if (configModal) configModal.style.display = 'none';
+    openDebugModal();
+  });
+  btnCloseDebug?.addEventListener('click', closeDebugModal);
+
+  debugModal?.addEventListener('click', (e) => {
+    if (e.target === debugModal) {
+      debugModal.style.display = 'none';
+    }
+  });
+
+  // Action Buttons
+  document.getElementById('btn-cheat-setup-hit')?.addEventListener('click', () => setupInstantHitCheat());
+  document.getElementById('btn-cheat-trigger-emojis')?.addEventListener('click', () => {
+    sounds.playCapture();
+    engine.triggerCaptureEmojis(gameState.current_turn, (gameState.current_turn + 1) % gameState.num_players);
+  });
+  document.getElementById('btn-cheat-step-fwd')?.addEventListener('click', () => moveSelectedTokenDebugForward());
+  document.getElementById('btn-cheat-step-back')?.addEventListener('click', () => moveSelectedTokenDebugBackward());
+  document.getElementById('btn-cheat-to-track')?.addEventListener('click', () => teleportSelectedTokenToTrack());
+  document.getElementById('btn-cheat-to-stretch')?.addEventListener('click', () => teleportSelectedTokenToStretch());
+  document.getElementById('btn-cheat-to-finish')?.addEventListener('click', () => teleportSelectedTokenToFinish());
+  document.getElementById('btn-cheat-to-base')?.addEventListener('click', () => teleportSelectedTokenToBase());
+  document.getElementById('btn-cheat-next-turn')?.addEventListener('click', () => skipTurn());
+
+  // Dice Cheat Buttons (1 to 6)
+  const diceBtns = document.querySelectorAll<HTMLButtonElement>('.btn-dice-cheat');
+  diceBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.dataset.val || '1', 10);
+      forceSetDiceRoll(val);
+    });
+  });
+
+  // Turn Cheat Buttons (Red, Green, Yellow, Blue)
+  const turnBtns = document.querySelectorAll<HTMLButtonElement>('.btn-turn-cheat');
+  turnBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const turnIdx = parseInt(btn.dataset.turn || '0', 10);
+      setTurnTo(turnIdx);
+    });
+  });
+
+  // Hotkey keyboard listener (F2, ~, 1..6, ArrowRight, ArrowLeft, H, T, F, R, Tab)
   window.addEventListener('keydown', (event: KeyboardEvent) => {
-    if (event.key === 'ArrowRight' || event.code === 'ArrowRight') {
-      if (selectedDebugTokenId !== null) {
-        moveSelectedTokenDebugForward(selectedDebugTokenId);
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+      return;
+    }
+
+    // Toggle Debug HUD: F2 or ` (Backtick / Tilde)
+    if (event.key === 'F2' || event.key === '`' || event.key === '~') {
+      event.preventDefault();
+      if (debugModal.style.display === 'flex') {
+        closeDebugModal();
+      } else {
+        openDebugModal();
       }
+      return;
+    }
+
+    if (!isDebugModeEnabled) return;
+
+    // Dice Force Roll 1..6
+    if (/^[1-6]$/.test(event.key)) {
+      event.preventDefault();
+      forceSetDiceRoll(parseInt(event.key, 10));
+      return;
+    }
+
+    switch (event.key) {
+      case 'ArrowRight':
+        event.preventDefault();
+        moveSelectedTokenDebugForward();
+        break;
+      case 'ArrowLeft':
+        event.preventDefault();
+        moveSelectedTokenDebugBackward();
+        break;
+      case 'h':
+      case 'H':
+        event.preventDefault();
+        setupInstantHitCheat();
+        break;
+      case 't':
+      case 'T':
+        event.preventDefault();
+        teleportSelectedTokenToTrack();
+        break;
+      case 'f':
+      case 'F':
+        event.preventDefault();
+        teleportSelectedTokenToFinish();
+        break;
+      case 'r':
+      case 'R':
+        event.preventDefault();
+        teleportSelectedTokenToBase();
+        break;
+      case 'Tab':
+        event.preventDefault();
+        skipTurn();
+        break;
     }
   });
 }
