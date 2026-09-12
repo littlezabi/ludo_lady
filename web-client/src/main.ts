@@ -1,11 +1,12 @@
 import { initWasmModule, newGame, rollDiceState, getValidMoveTokenIds, applyMoveToken, GameState } from './wasmLoader';
-import { Ludo3DEngine } from './engine';
+import { Ludo3DEngine, CameraViewMode } from './engine';
 import { joinRoom, broadcastGameState, generateRoomCode } from './network';
 import { sounds } from './soundEffects';
 
 let engine: Ludo3DEngine;
 let gameState: GameState;
 let validTokenIds: number[] = [];
+let selectedDebugTokenId: number | null = null;
 let roomCode: string | null = null;
 let generatedRoomCode: string = '';
 
@@ -32,6 +33,7 @@ async function bootstrap() {
 
     // 5. Setup Menu Tabs and Control Listeners
     setupMenuControls();
+    setupConfigControls();
     setupUIControls();
 
     // 6. Check URL query params for direct room join link (?room=123456)
@@ -207,8 +209,6 @@ function handleRollDice() {
   updateUI();
 }
 
-let selectedDebugTokenId: number | null = null;
-
 function moveSelectedTokenDebugForward(tokenId: number) {
   const token = gameState.tokens.find(t => t.id === tokenId);
   if (!token || token.position === 999) return; // Already finished
@@ -327,6 +327,128 @@ function setupUIControls() {
       }
     }
   });
+}
+
+function setupConfigControls() {
+  const configModal = document.getElementById('config-modal')!;
+  const btnOpenConfig = document.getElementById('btn-open-config')!;
+  const btnCloseConfig = document.getElementById('btn-close-config')!;
+
+  btnOpenConfig.addEventListener('click', () => {
+    sounds.playClick();
+    configModal.style.display = 'flex';
+  });
+
+  btnCloseConfig.addEventListener('click', () => {
+    sounds.playClick();
+    configModal.style.display = 'none';
+  });
+
+  configModal.addEventListener('click', (e) => {
+    if (e.target === configModal) {
+      configModal.style.display = 'none';
+    }
+  });
+
+  // Load Saved Preferences
+  const savedCameraView = (localStorage.getItem('ludo_camera_mode') as CameraViewMode) || 'free';
+  const savedPlayerColor = parseInt(localStorage.getItem('ludo_player_color') || '0', 10);
+  const savedSoundMuted = localStorage.getItem('ludo_sound_muted') === 'true';
+  const savedSoundVolume = parseInt(localStorage.getItem('ludo_sound_volume') || '100', 10);
+  const savedShadows = localStorage.getItem('ludo_shadows_enabled') !== 'false';
+
+  // Apply to Sound Manager
+  sounds.muted = savedSoundMuted;
+  sounds.volume = savedSoundVolume / 100;
+
+  // Apply to Engine
+  engine.setCameraViewMode(savedCameraView, savedPlayerColor);
+  engine.setShadowsEnabled(savedShadows);
+
+  // Sync UI Elements
+  // 1. Camera View Mode Buttons
+  const viewBtns = document.querySelectorAll<HTMLButtonElement>('.config-view-btn');
+  viewBtns.forEach(btn => {
+    const view = btn.dataset.view as CameraViewMode;
+    if (view === savedCameraView) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+
+    btn.addEventListener('click', () => {
+      sounds.playClick();
+      viewBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const selectedView = btn.dataset.view as CameraViewMode;
+      localStorage.setItem('ludo_camera_mode', selectedView);
+      engine.setCameraViewMode(selectedView);
+    });
+  });
+
+  // 2. Player Color Chips
+  const colorChips = document.querySelectorAll<HTMLButtonElement>('.config-color-chip');
+  colorChips.forEach(chip => {
+    const colorIdx = parseInt(chip.dataset.color || '0', 10);
+    if (colorIdx === savedPlayerColor) {
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+
+    chip.addEventListener('click', () => {
+      sounds.playClick();
+      colorChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      const selectedColor = parseInt(chip.dataset.color || '0', 10);
+      localStorage.setItem('ludo_player_color', selectedColor.toString());
+      engine.myPlayerColor = selectedColor;
+      if (engine.cameraViewMode === 'home') {
+        engine.updateCameraTargetPos();
+      }
+    });
+  });
+
+  // 3. Sound Effects Toggle
+  const soundToggle = document.getElementById('config-sound-toggle') as HTMLInputElement;
+  if (soundToggle) {
+    soundToggle.checked = !savedSoundMuted;
+    soundToggle.addEventListener('change', () => {
+      sounds.playClick();
+      const isMuted = !soundToggle.checked;
+      sounds.muted = isMuted;
+      localStorage.setItem('ludo_sound_muted', isMuted ? 'true' : 'false');
+    });
+  }
+
+  // 4. Volume Slider
+  const soundVolumeSlider = document.getElementById('config-sound-volume') as HTMLInputElement;
+  const volumeLabel = document.getElementById('config-volume-label')!;
+  if (soundVolumeSlider) {
+    soundVolumeSlider.value = savedSoundVolume.toString();
+    if (volumeLabel) volumeLabel.textContent = `${savedSoundVolume}%`;
+
+    soundVolumeSlider.addEventListener('input', () => {
+      const volVal = parseInt(soundVolumeSlider.value, 10);
+      if (volumeLabel) volumeLabel.textContent = `${volVal}%`;
+      sounds.volume = volVal / 100;
+      localStorage.setItem('ludo_sound_volume', volVal.toString());
+    });
+  }
+
+  // 5. Shadows Toggle
+  const shadowsToggle = document.getElementById('config-shadows-toggle') as HTMLInputElement;
+  if (shadowsToggle) {
+    shadowsToggle.checked = savedShadows;
+    shadowsToggle.addEventListener('change', () => {
+      sounds.playClick();
+      const enabled = shadowsToggle.checked;
+      engine.setShadowsEnabled(enabled);
+      localStorage.setItem('ludo_shadows_enabled', enabled ? 'true' : 'false');
+    });
+  }
 }
 
 window.addEventListener('DOMContentLoaded', bootstrap);

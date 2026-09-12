@@ -4,6 +4,8 @@ import { GameState, TokenState } from './wasmLoader';
 import { getTile3DPosition, getStepByStepPath } from './boardCoordinates';
 import { sounds } from './soundEffects';
 
+export type CameraViewMode = 'free' | 'top' | 'home' | 'active_turn';
+
 export class Ludo3DEngine {
   private container: HTMLElement;
   private scene: THREE.Scene;
@@ -22,6 +24,13 @@ export class Ludo3DEngine {
   private isDiceRolling = false;
   private diceTargetRotation = new THREE.Euler();
   private stackIndicatorGroup = new THREE.Group();
+  private dirLight!: THREE.DirectionalLight;
+
+  public cameraViewMode: CameraViewMode = 'free';
+  public myPlayerColor: number = 0; // 0: Red, 1: Green, 2: Yellow, 3: Blue
+  private targetCameraPos = new THREE.Vector3(0, 16, 14);
+  private targetCameraLookAt = new THREE.Vector3(0, 0, 0);
+  private isTransitioningCamera = false;
 
   private pointerDownX = 0;
   private pointerDownY = 0;
@@ -90,19 +99,19 @@ export class Ludo3DEngine {
     this.scene.add(ambientLight);
 
     // 2. Overhead Main Key Light (Soft shadows, wide bounds so shadow edge never clips board)
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
-    dirLight.position.set(12, 25, 8);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
-    dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 60;
-    dirLight.shadow.camera.left = -30;
-    dirLight.shadow.camera.right = 30;
-    dirLight.shadow.camera.top = 30;
-    dirLight.shadow.camera.bottom = -30;
-    dirLight.shadow.bias = -0.0005;
-    this.scene.add(dirLight);
+    this.dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
+    this.dirLight.position.set(12, 25, 8);
+    this.dirLight.castShadow = true;
+    this.dirLight.shadow.mapSize.width = 2048;
+    this.dirLight.shadow.mapSize.height = 2048;
+    this.dirLight.shadow.camera.near = 0.5;
+    this.dirLight.shadow.camera.far = 60;
+    this.dirLight.shadow.camera.left = -30;
+    this.dirLight.shadow.camera.right = 30;
+    this.dirLight.shadow.camera.top = 30;
+    this.dirLight.shadow.camera.bottom = -30;
+    this.dirLight.shadow.bias = -0.0005;
+    this.scene.add(this.dirLight);
 
     // 3. Front Fill Light (Ensures 100% of board front/bottom face is illuminated)
     const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
@@ -298,6 +307,10 @@ export class Ludo3DEngine {
 
   public updateState(state: GameState, validTokenIds: number[]): void {
     this.lastGameState = state;
+
+    if (this.cameraViewMode === 'active_turn') {
+      this.updateCameraTargetPos();
+    }
     const colorHexMap: { [key: string]: number } = {
       Red: 0xef4444,
       Green: 0x22c55e,
@@ -487,11 +500,65 @@ export class Ludo3DEngine {
     }
   }
 
+  public setCameraViewMode(mode: CameraViewMode, playerColorIdx = this.myPlayerColor): void {
+    this.cameraViewMode = mode;
+    this.myPlayerColor = playerColorIdx;
+    this.updateCameraTargetPos();
+  }
+
+  public setShadowsEnabled(enabled: boolean): void {
+    this.renderer.shadowMap.enabled = enabled;
+    if (this.dirLight) {
+      this.dirLight.castShadow = enabled;
+    }
+  }
+
+  public updateCameraTargetPos(): void {
+    if (this.cameraViewMode === 'free') {
+      this.isTransitioningCamera = false;
+      return;
+    }
+
+    let targetPos = new THREE.Vector3(0, 16, 14);
+    const targetLookAt = new THREE.Vector3(0, 0, 0);
+
+    if (this.cameraViewMode === 'top') {
+      targetPos.set(0, 22, 0.001);
+    } else if (this.cameraViewMode === 'home' || this.cameraViewMode === 'active_turn') {
+      const activeIdx = this.cameraViewMode === 'active_turn'
+        ? (this.lastGameState ? this.lastGameState.current_turn : 0)
+        : this.myPlayerColor;
+
+      const homePosList = [
+        new THREE.Vector3(-14, 16, -14), // Red (Top-Left)
+        new THREE.Vector3(14, 16, -14),  // Green (Top-Right)
+        new THREE.Vector3(14, 16, 14),   // Yellow (Bottom-Right)
+        new THREE.Vector3(-14, 16, 14)   // Blue (Bottom-Left)
+      ];
+
+      targetPos = homePosList[Math.max(0, activeIdx) % 4] || homePosList[0];
+    }
+
+    this.targetCameraPos.copy(targetPos);
+    this.targetCameraLookAt.copy(targetLookAt);
+    this.isTransitioningCamera = true;
+  }
+
   private animate(): void {
     requestAnimationFrame(this.animate.bind(this));
 
-    // Update Orbit Controls
-    this.controls.update();
+    // Smooth Camera Lerp Transition
+    if (this.isTransitioningCamera) {
+      this.camera.position.lerp(this.targetCameraPos, 0.08);
+      this.controls.target.lerp(this.targetCameraLookAt, 0.08);
+      this.controls.update();
+
+      if (this.camera.position.distanceTo(this.targetCameraPos) < 0.05) {
+        this.isTransitioningCamera = false;
+      }
+    } else {
+      this.controls.update();
+    }
 
     // Step-by-Step Hopping Pawn Movement Animation
     this.pawnMeshes.forEach((mesh, id) => {

@@ -288,6 +288,56 @@
       background: rgba(255, 255, 255, 0.15);
     }
 
+    /* Configuration & View Mode Settings Styling */
+    .config-view-btn {
+      background: #0f172a;
+      color: var(--text-muted);
+      border: 1.5px solid var(--border-color);
+      padding: 0.65rem 0.5rem;
+      border-radius: 0.75rem;
+      font-size: 0.825rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      text-align: center;
+    }
+
+    .config-view-btn:hover {
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .config-view-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+
+    .config-color-chip {
+      flex: 1;
+      background: #0f172a;
+      color: white;
+      border: 1.5px solid var(--border-color);
+      padding: 0.5rem 0.3rem;
+      border-radius: 0.6rem;
+      font-size: 0.8rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .config-color-chip.active {
+      background: var(--chip-color);
+      color: #0f172a;
+      border-color: var(--chip-color);
+      box-shadow: 0 0 12px var(--chip-color);
+    }
+
     /* In-Game Header */
     header {
       padding: 0.75rem 1.25rem;
@@ -658,8 +708,11 @@
       <div class="room-info-pill" id="room-info-pill">
         <span>Room:</span> <strong id="header-room-code">Local</strong>
       </div>
+      <button class="btn-secondary-action" id="btn-open-config" style="padding:0.35rem 0.75rem; font-size:0.8rem; display:flex; align-items:center; gap:0.3rem;">
+        ⚙️ Settings
+      </button>
       <button class="btn-secondary-action" id="btn-open-menu" style="padding:0.35rem 0.75rem; font-size:0.8rem;">
-        ⚙️ Menu
+        🎮 Menu
       </button>
     </div>
   </header>
@@ -674,6 +727,72 @@
     <div class="dice-box" id="dice-value">🎲</div>
     <button class="btn-roll" id="btn-roll">ROLL DICE</button>
     <div class="action-log" id="action-log">Game initialized</div>
+  </div>
+
+  <!-- Configuration / Settings Modal -->
+  <div class="modal" id="config-modal">
+    <div class="modal-card" style="max-width: 500px; text-align: left; position: relative;">
+      <button id="btn-close-config" style="position:absolute; top:1rem; right:1.2rem; background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">✕</button>
+      
+      <h2 style="font-size: 1.4rem; margin-bottom: 1.25rem; color: #38bdf8; display:flex; align-items:center; gap:0.5rem;">
+        ⚙️ Game & View Configuration
+      </h2>
+
+      <div style="display:flex; flex-direction:column; gap:1.25rem;">
+        <!-- Camera View Mode -->
+        <div class="form-group">
+          <label class="form-label">🎥 3D Camera View Mode</label>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-top:0.3rem;">
+            <button class="config-view-btn active" data-view="free">
+              🌐 Free Orbit 3D
+            </button>
+            <button class="config-view-btn" data-view="top">
+              🧭 Top-Down View
+            </button>
+            <button class="config-view-btn" data-view="home">
+              🏠 My Base View
+            </button>
+            <button class="config-view-btn" data-view="active_turn">
+              🔄 Active Turn Follow
+            </button>
+          </div>
+        </div>
+
+        <!-- My Player Home Base Selection -->
+        <div class="form-group" id="player-color-select-group">
+          <label class="form-label">🎯 My Player Perspective Angle</label>
+          <div style="display:flex; gap:0.5rem; margin-top:0.3rem;">
+            <button class="config-color-chip active" data-color="0" style="--chip-color:#ef4444;">🔴 Red</button>
+            <button class="config-color-chip" data-color="1" style="--chip-color:#22c55e;">🟢 Green</button>
+            <button class="config-color-chip" data-color="2" style="--chip-color:#eab308;">🟡 Yellow</button>
+            <button class="config-color-chip" data-color="3" style="--chip-color:#3b82f6;">🔵 Blue</button>
+          </div>
+        </div>
+
+        <!-- Audio & Sound Effects Settings -->
+        <div class="form-group">
+          <label class="form-label">🔊 Audio & Sound Effects</label>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:0.3rem; background:rgba(15, 23, 42, 0.7); padding:0.6rem 0.9rem; border-radius:0.75rem; border:1px solid var(--border-color);">
+            <span style="font-size:0.9rem; font-weight:700;">Sound Effects</span>
+            <input type="checkbox" id="config-sound-toggle" checked style="width:20px; height:20px; cursor:pointer;">
+          </div>
+          <div style="display:flex; align-items:center; gap:0.8rem; margin-top:0.5rem;">
+            <span style="font-size:0.8rem; color:var(--text-muted); font-weight:700;">Volume</span>
+            <input type="range" id="config-sound-volume" min="0" max="100" value="100" style="flex:1; cursor:pointer;">
+            <span id="config-volume-label" style="font-size:0.8rem; font-weight:800; min-width:35px;">100%</span>
+          </div>
+        </div>
+
+        <!-- Visuals & Shadows -->
+        <div class="form-group">
+          <label class="form-label">☀️ Graphics & Performance</label>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:0.3rem; background:rgba(15, 23, 42, 0.7); padding:0.6rem 0.9rem; border-radius:0.75rem; border:1px solid var(--border-color);">
+            <span style="font-size:0.9rem; font-weight:700;">3D Shadows & Lighting</span>
+            <input type="checkbox" id="config-shadows-toggle" checked style="width:20px; height:20px; cursor:pointer;">
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Winner Modal -->

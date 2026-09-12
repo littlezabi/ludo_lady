@@ -1,5 +1,12 @@
 class SoundManager {
   private ctx: AudioContext | null = null;
+  public muted: boolean = false;
+  public volume: number = 1.0;
+
+  private getGain(baseGain: number): number {
+    if (this.muted) return 0.00001;
+    return Math.max(0.00001, baseGain * this.volume);
+  }
 
   private initCtx() {
     if (!this.ctx) {
@@ -12,6 +19,7 @@ class SoundManager {
   }
 
   playDiceRoll() {
+    if (this.muted || this.volume <= 0) return;
     this.initCtx();
     if (!this.ctx) return;
 
@@ -24,7 +32,7 @@ class SoundManager {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(150 + Math.random() * 200, this.ctx.currentTime);
         
-        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.setValueAtTime(this.getGain(0.15), this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
 
         osc.connect(gain);
