@@ -381,39 +381,41 @@ export class Ludo3DEngine {
       Blue: 0x3b82f6
     };
 
-    // 1. Group active tokens on board by position (excluding home -1 and finished 999)
+    // 1. Group active tokens on board by stack key (excluding home -1; for pos 999, group per color so finished pieces stack in center)
     const positionToActiveTokens = new Map<number, number[]>();
     state.tokens.forEach(t => {
-      if (t.position !== -1 && t.position !== 999) {
-        const list = positionToActiveTokens.get(t.position) || [];
+      if (t.position !== -1) {
+        const stackKey = t.position === 999 ? (9990 + Math.floor(t.id / 4)) : t.position;
+        const list = positionToActiveTokens.get(stackKey) || [];
         list.push(t.id);
-        positionToActiveTokens.set(t.position, list);
+        positionToActiveTokens.set(stackKey, list);
       }
     });
 
-    // 2. Update stackArrivalOrder for each position (preserving historical order for existing pieces, appending newly arrived pieces to VERY TOP)
-    positionToActiveTokens.forEach((activeTokenIds, pos) => {
-      const existingOrder = this.stackArrivalOrder.get(pos) || [];
+    // 2. Update stackArrivalOrder for each position / stack key
+    positionToActiveTokens.forEach((activeTokenIds, stackKey) => {
+      const existingOrder = this.stackArrivalOrder.get(stackKey) || [];
 
-      // Keep existing tokens that are STILL at pos and did NOT move in from another tile
+      // Keep existing tokens that are STILL at stackKey and did NOT move in from another tile
       const remainingInOrder = existingOrder.filter(id => {
         const isStillAtPos = activeTokenIds.includes(id);
         const prevPos = this.tokenPreviousPositions.get(id);
-        return isStillAtPos && prevPos === pos;
+        const prevStackKey = (prevPos === 999) ? (9990 + Math.floor(id / 4)) : prevPos;
+        return isStillAtPos && prevStackKey === stackKey;
       });
 
-      // Find tokens that are newly at pos (either prevPos !== pos or wasn't in existing order)
+      // Find tokens that are newly at stackKey (either prevPos !== pos or wasn't in existing order)
       const newlyArrived = activeTokenIds.filter(id => !remainingInOrder.includes(id));
 
       // New arrival order: remaining stay at bottom/middle, newly arrived placed at end (VERY TOP)
       const newOrder = [...remainingInOrder, ...newlyArrived];
-      this.stackArrivalOrder.set(pos, newOrder);
+      this.stackArrivalOrder.set(stackKey, newOrder);
     });
 
     // 3. Clean up stackArrivalOrder for positions that no longer have any active tokens
-    this.stackArrivalOrder.forEach((_, pos) => {
-      if (!positionToActiveTokens.has(pos)) {
-        this.stackArrivalOrder.delete(pos);
+    this.stackArrivalOrder.forEach((_, stackKey) => {
+      if (!positionToActiveTokens.has(stackKey)) {
+        this.stackArrivalOrder.delete(stackKey);
       }
     });
 
@@ -424,7 +426,8 @@ export class Ludo3DEngine {
       let mesh = this.pawnMeshes.get(token.id);
 
       // Determine if token is a lower layer in a multi-pawn stack using physical arrival order
-      const group = this.currentPositionGroups.get(token.position);
+      const stackKey = token.position === 999 ? (9990 + Math.floor(token.id / 4)) : token.position;
+      const group = this.currentPositionGroups.get(stackKey);
       const isLowerLayerInStack = group && group.length > 1 && group.indexOf(token.id) < group.length - 1;
       const targetGeo = isLowerLayerInStack ? this.createSolidBaseDiscGeometry() : this.createHollowPawnGeometry();
 

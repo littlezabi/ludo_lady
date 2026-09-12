@@ -50,27 +50,19 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
   // 2. Finished Center Positions (999)
   if (positionCode === 999) {
     const centerOffsets = [
-      { x: -0.9, z: -0.9 }, // Red (Top-Left: -X, -Z)
-      { x: 0.9, z: -0.9 },  // Green (Top-Right: +X, -Z)
-      { x: 0.9, z: 0.9 },   // Yellow (Bottom-Right: +X, +Z)
-      { x: -0.9, z: 0.9 }   // Blue (Bottom-Left: -X, +Z)
-    ];
-
-    const subOffsets = [
-      { dx: -0.32, dz: -0.32 },
-      { dx: 0.32, dz: -0.32 },
-      { dx: -0.32, dz: 0.32 },
-      { dx: 0.32, dz: 0.32 }
+      { x: -0.65, z: -0.65 }, // Red (Top-Left: -X, -Z)
+      { x: 0.65, z: -0.65 },  // Green (Top-Right: +X, -Z)
+      { x: 0.65, z: 0.65 },   // Yellow (Bottom-Right: +X, +Z)
+      { x: -0.65, z: 0.65 }   // Blue (Bottom-Left: -X, +Z)
     ];
 
     const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
     const baseCo = centerOffsets[safeColorIdx] || centerOffsets[0];
-    const subOff = subOffsets[tokenId % 4] || subOffsets[0];
 
     return {
-      x: baseCo.x + subOff.dx,
+      x: baseCo.x,
       y: yPos + 0.05,
-      z: baseCo.z + subOff.dz
+      z: baseCo.z
     };
   }
 
