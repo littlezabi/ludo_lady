@@ -21,6 +21,7 @@ export class Ludo3DEngine {
   private diceMesh!: THREE.Mesh;
   private isDiceRolling = false;
   private diceTargetRotation = new THREE.Euler();
+  private stackIndicatorGroup = new THREE.Group();
 
   private pointerDownX = 0;
   private pointerDownY = 0;
@@ -35,6 +36,7 @@ export class Ludo3DEngine {
     this.scene.background = new THREE.Color(0x0f172a);
     // Remove fog to prevent distance darkening/shadow gradients on board
     this.scene.fog = null;
+    this.scene.add(this.stackIndicatorGroup);
 
     // 2. Camera (Isometric Top-Angled View)
     this.camera = new THREE.PerspectiveCamera(
@@ -524,9 +526,21 @@ export class Ludo3DEngine {
   private lastGameState: GameState | null = null;
 
   private updateStackBadges(): void {
-    if (!this.lastGameState) return;
+    // 1. Clear previous 3D stack indicator meshes from scene
+    while (this.stackIndicatorGroup.children.length > 0) {
+      const child = this.stackIndicatorGroup.children[0];
+      if ('geometry' in child && (child as THREE.Mesh).geometry) {
+        (child as THREE.Mesh).geometry.dispose();
+      }
+      this.stackIndicatorGroup.remove(child);
+    }
+
     const overlayContainer = document.getElementById('stack-overlay-container');
-    if (!overlayContainer) return;
+    if (overlayContainer) {
+      overlayContainer.innerHTML = '';
+    }
+
+    if (!this.lastGameState) return;
 
     const state = this.lastGameState;
     const positionGroups: Map<number, { id: number; color: string }[]> = new Map();
@@ -547,57 +561,88 @@ export class Ludo3DEngine {
         tokens.forEach(t => {
           colorCounts[t.color] = (colorCounts[t.color] || 0) + 1;
         });
-        stackPositions.push({
-          posCode,
-          colorCounts,
-          totalCount: tokens.length,
-          sampleToken: tokens[0]
-        });
+
+        // ONLY show indicators when there are DIFFERENT colors in the stack (e.g. Red + Blue)
+        const distinctColors = Object.keys(colorCounts);
+        if (distinctColors.length >= 2) {
+          stackPositions.push({
+            posCode,
+            colorCounts,
+            totalCount: tokens.length,
+            sampleToken: tokens[0]
+          });
+        }
       }
     });
 
-    overlayContainer.innerHTML = '';
+    const colorHexMap: { [key: string]: number } = {
+      Red: 0xef4444,
+      Green: 0x22c55e,
+      Yellow: 0xffcc00,
+      Blue: 0x3b82f6
+    };
 
-    const width = this.container.clientWidth;
-    const height = this.container.clientHeight;
+    const dotRadius = 0.055;
+    const dotDiameter = dotRadius * 2;
+    const dotSpacing = 0.04;
 
     stackPositions.forEach(item => {
       const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
       const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
 
-      // 3D Point positioned directly above the pawn stack top so dots float clearly above the pieces
-      const stackTopY = 0.26 + item.totalCount * 0.28 + 0.65;
-      const worldVec = new THREE.Vector3(p3d.x, stackTopY, p3d.z);
+      // Side track position fixed on the 3D board floor
+      const len = Math.hypot(p3d.x, p3d.z);
+      const dirX = len > 0.1 ? p3d.x / len : 1;
+      const dirZ = len > 0.1 ? p3d.z / len : 0;
+      const sideTrackX = p3d.x + dirX * 0.28;
+      const sideTrackZ = p3d.z + dirZ * 0.28;
+      const boardSurfaceY = 0.27; // Flat on 3D board floor surface
 
-      // Project 3D point on top of stack to 2D Screen Space
-      worldVec.project(this.camera);
+      const totalDots = item.totalCount;
+      const boxWidth = totalDots * dotDiameter + (totalDots - 1) * dotSpacing + 0.08;
+      const boxHeight = dotDiameter + 0.08;
 
-      // Verify point is in front of camera
-      if (worldVec.z < 1.0) {
-        const screenX = (worldVec.x * 0.5 + 0.5) * width;
-        const screenY = (-worldVec.y * 0.5 + 0.5) * height;
+      // 1. Dark compact background box plane fixed on board floor
+      const bgGeo = new THREE.PlaneGeometry(boxWidth, boxHeight);
+      const bgMat = new THREE.MeshBasicMaterial({ color: 0x090d16, side: THREE.DoubleSide });
+      const bgMesh = new THREE.Mesh(bgGeo, bgMat);
+      bgMesh.rotation.x = -Math.PI / 2;
+      bgMesh.position.set(sideTrackX, boardSurfaceY, sideTrackZ);
+      this.stackIndicatorGroup.add(bgMesh);
 
-        // Render stack dot row container centered horizontally above stack top
-        const rowEl = document.createElement('div');
-        rowEl.className = 'stack-dot-row';
-        rowEl.style.left = `${screenX}px`;
-        rowEl.style.top = `${screenY}px`;
+      // 2. Render small flat circular dot meshes inside dark background box
+      const startX = -boxWidth / 2 + 0.04 + dotRadius;
+      let dotIdx = 0;
 
-        // Output one dot per piece in the stack grouped by color
-        const order = ['Red', 'Green', 'Yellow', 'Blue'];
-        order.forEach(col => {
-          const cnt = item.colorCounts[col];
-          if (cnt && cnt > 0) {
-            for (let i = 0; i < cnt; i++) {
-              const dot = document.createElement('div');
-              dot.className = `stack-dot ${col}`;
-              rowEl.appendChild(dot);
+      const order = ['Red', 'Green', 'Yellow', 'Blue'];
+      order.forEach(col => {
+        const cnt = item.colorCounts[col];
+        if (cnt && cnt > 0) {
+          const colHex = colorHexMap[col] || 0xffffff;
+          for (let i = 0; i < cnt; i++) {
+            const posX = startX + dotIdx * (dotDiameter + dotSpacing);
+
+            // Add dark border ring underneath yellow dot to ensure 100% contrast with yellow track tiles
+            if (col === 'Yellow') {
+              const borderGeo = new THREE.CircleGeometry(dotRadius + 0.015, 16);
+              const borderMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+              const borderMesh = new THREE.Mesh(borderGeo, borderMat);
+              borderMesh.rotation.x = -Math.PI / 2;
+              borderMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.001, sideTrackZ);
+              this.stackIndicatorGroup.add(borderMesh);
             }
-          }
-        });
 
-        overlayContainer.appendChild(rowEl);
-      }
+            const dotGeo = new THREE.CircleGeometry(dotRadius, 16);
+            const dotMat = new THREE.MeshBasicMaterial({ color: colHex, side: THREE.DoubleSide });
+            const dotMesh = new THREE.Mesh(dotGeo, dotMat);
+            dotMesh.rotation.x = -Math.PI / 2;
+            dotMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.002, sideTrackZ);
+            this.stackIndicatorGroup.add(dotMesh);
+
+            dotIdx++;
+          }
+        }
+      });
     });
   }
 
