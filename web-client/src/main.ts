@@ -207,30 +207,72 @@ function handleRollDice() {
   updateUI();
 }
 
-function handlePawnClick(tokenId: number) {
-  if (gameState.dice_roll === 0 || gameState.winner !== null) return;
-  if (!validTokenIds.includes(tokenId)) return;
+let selectedDebugTokenId: number | null = null;
 
-  gameState = applyMoveToken(gameState, tokenId);
-  validTokenIds = [];
+function moveSelectedTokenDebugForward(tokenId: number) {
+  const token = gameState.tokens.find(t => t.id === tokenId);
+  if (!token || token.position === 999) return; // Already finished
 
-  // Check audio triggers
-  if (gameState.last_action.includes("captured")) {
-    sounds.playCapture();
+  const colorIdxMap: { [key: string]: number } = { Red: 0, Green: 1, Yellow: 2, Blue: 3 };
+  const colorIdx = colorIdxMap[token.color] ?? 0;
+
+  const startTrackMap = [0, 13, 26, 39];
+  const stretchBaseMap = [100, 200, 300, 400];
+
+  const prevSteps = token.steps_taken;
+  let newSteps = token.steps_taken + 1;
+
+  if (prevSteps === 0 || token.position === -1) {
+    newSteps = 1;
+    token.position = startTrackMap[colorIdx];
+  } else if (newSteps <= 51) {
+    token.position = (startTrackMap[colorIdx] + newSteps - 1) % 52;
+  } else if (newSteps >= 52 && newSteps <= 56) {
+    token.position = stretchBaseMap[colorIdx] + (newSteps - 51);
+  } else if (newSteps >= 57) {
+    token.position = 999;
+    newSteps = 57;
   }
 
-  if (gameState.winner !== null) {
-    sounds.playWinFanfare();
-  }
+  token.steps_taken = newSteps;
+  gameState.last_action = `[DEBUG] ${token.color} Pawn #${token.id} moved step ${newSteps}`;
+
+  sounds.playStep();
+  updateUI();
 
   if (roomCode) {
     broadcastGameState(gameState);
+  }
+}
+
+function handlePawnClick(tokenId: number) {
+  // Always mark selected pawn for debugging
+  selectedDebugTokenId = tokenId;
+  engine.selectedDebugTokenId = selectedDebugTokenId;
+
+  if (gameState.dice_roll > 0 && gameState.winner === null && validTokenIds.includes(tokenId)) {
+    gameState = applyMoveToken(gameState, tokenId);
+    validTokenIds = [];
+
+    // Check audio triggers
+    if (gameState.last_action.includes("captured")) {
+      sounds.playCapture();
+    }
+
+    if (gameState.winner !== null) {
+      sounds.playWinFanfare();
+    }
+
+    if (roomCode) {
+      broadcastGameState(gameState);
+    }
   }
 
   updateUI();
 }
 
 function updateUI() {
+  engine.selectedDebugTokenId = selectedDebugTokenId;
   engine.updateState(gameState, validTokenIds);
 
   const turnColors = ['Red', 'Green', 'Yellow', 'Blue'];
@@ -275,6 +317,16 @@ function updateUI() {
 
 function setupUIControls() {
   document.getElementById('btn-roll')?.addEventListener('click', handleRollDice);
+
+  // Debug Right Arrow Key Step Forward Listener
+  window.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (event.key === 'ArrowRight' || event.code === 'ArrowRight') {
+      if (selectedDebugTokenId !== null) {
+        moveSelectedTokenDebugForward(selectedDebugTokenId);
+      }
+    }
+  });
 }
 
 window.addEventListener('DOMContentLoaded', bootstrap);
+

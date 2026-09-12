@@ -226,6 +226,27 @@ export class Ludo3DEngine {
     }, 500);
   }
 
+  public selectedDebugTokenId: number | null = null;
+
+  private getStackOffset(subIdx: number, count: number): { x: number; z: number } {
+    const d = 0.24;
+    if (count === 2) {
+      return subIdx === 0 ? { x: -d, z: -d } : { x: d, z: d };
+    }
+    if (count === 3) {
+      if (subIdx === 0) return { x: -d, z: -d };
+      if (subIdx === 1) return { x: d, z: -d };
+      return { x: 0, z: d };
+    }
+    const offsets = [
+      { x: -d, z: -d },
+      { x: d, z: -d },
+      { x: -d, z: d },
+      { x: d, z: d }
+    ];
+    return offsets[subIdx % 4];
+  }
+
   public updateState(state: GameState, validTokenIds: number[]): void {
     const colorHexMap: { [key: string]: number } = {
       Red: 0xef4444,
@@ -233,6 +254,16 @@ export class Ludo3DEngine {
       Yellow: 0xeab308,
       Blue: 0x3b82f6
     };
+
+    // Group active tokens on the board (pos != -1 and pos != 999) by position to compute stacking offsets
+    const positionGroups: Map<number, number[]> = new Map();
+    state.tokens.forEach(t => {
+      if (t.position !== -1 && t.position !== 999) {
+        const group = positionGroups.get(t.position) || [];
+        group.push(t.id);
+        positionGroups.set(t.position, group);
+      }
+    });
 
     state.tokens.forEach((token) => {
       let mesh = this.pawnMeshes.get(token.id);
@@ -263,7 +294,20 @@ export class Ludo3DEngine {
 
       // Calculate Target 3D Position
       const colorIdx = Math.floor(state.tokens.indexOf(token) / 4);
-      const p3d = getTile3DPosition(token.position, token.id, colorIdx);
+      let p3d = getTile3DPosition(token.position, token.id, colorIdx);
+
+      // Apply sub-tile offset if multiple pawns share the same board block
+      const group = positionGroups.get(token.position);
+      if (group && group.length > 1) {
+        const subIdx = group.indexOf(token.id);
+        const offset = this.getStackOffset(subIdx, group.length);
+        p3d = {
+          x: p3d.x + offset.x,
+          y: p3d.y,
+          z: p3d.z + offset.z
+        };
+      }
+
       const targetVec = new THREE.Vector3(p3d.x, p3d.y, p3d.z);
 
       const prevSteps = this.tokenPreviousSteps.get(token.id) ?? (token.position === -1 ? -1 : token.steps_taken);
@@ -271,7 +315,14 @@ export class Ludo3DEngine {
       if (token.steps_taken > prevSteps && prevSteps !== -1) {
         // Generate step-by-step intermediate waypoints
         const pathPoints = getStepByStepPath(colorIdx, prevSteps, token.steps_taken, token.id);
-        const waypointsVec = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+        const waypointsVec = pathPoints.map((p, idx) => {
+          if (idx === pathPoints.length - 1 && group && group.length > 1) {
+            const subIdx = group.indexOf(token.id);
+            const offset = this.getStackOffset(subIdx, group.length);
+            return new THREE.Vector3(p.x + offset.x, p.y, p.z + offset.z);
+          }
+          return new THREE.Vector3(p.x, p.y, p.z);
+        });
         this.pawnWaypoints.set(token.id, waypointsVec);
       } else {
         this.pawnTargetPositions.set(token.id, targetVec);
@@ -280,7 +331,7 @@ export class Ludo3DEngine {
       this.tokenPreviousSteps.set(token.id, token.steps_taken);
     });
 
-    // Update Valid Moves Glow Highlight Rings
+    // Update Valid Moves & Selection Glow Highlight Rings
     this.updateHighlightRings(validTokenIds);
   }
 
@@ -307,6 +358,23 @@ export class Ludo3DEngine {
         this.highlightRings.push(ring);
       }
     });
+
+    // Highlight Currently Selected Debug Pawn
+    if (this.selectedDebugTokenId !== null) {
+      const selectedMesh = this.pawnMeshes.get(this.selectedDebugTokenId);
+      if (selectedMesh) {
+        const debugRingMat = new THREE.MeshBasicMaterial({
+          color: 0xf59e0b, // Amber Gold
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.95
+        });
+        const debugRing = new THREE.Mesh(ringGeo, debugRingMat);
+        debugRing.position.set(selectedMesh.position.x, 0.36, selectedMesh.position.z);
+        this.scene.add(debugRing);
+        this.highlightRings.push(debugRing);
+      }
+    }
   }
 
   public setOnTokenClicked(callback: (tokenId: number) => void): void {
