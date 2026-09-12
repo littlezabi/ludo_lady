@@ -234,32 +234,35 @@ export class Ludo3DEngine {
 
     const points: THREE.Vector2[] = [];
 
-    // 1. Inner Hollow Cavity (Ceiling down to Bottom Rim)
-    points.push(new THREE.Vector2(0.00, 0.58)); // Cavity ceiling
-    points.push(new THREE.Vector2(0.20, 0.52)); // Upper cavity wall
-    points.push(new THREE.Vector2(0.30, 0.24)); // Mid cavity wall
-    points.push(new THREE.Vector2(0.36, 0.08)); // Lower cavity wall
-    points.push(new THREE.Vector2(0.40, 0.00)); // Inner bottom rim
+    // 1. Inner Hollow Cavity (Ceiling down to Bottom Opening Rim)
+    points.push(new THREE.Vector2(0.00, 0.82)); // Interior ceiling inside neck/head
+    points.push(new THREE.Vector2(0.16, 0.72)); // Upper cavity wall
+    points.push(new THREE.Vector2(0.23, 0.45)); // Tapered cavity wall
+    points.push(new THREE.Vector2(0.28, 0.22)); // Lower cavity wall
+    points.push(new THREE.Vector2(0.33, 0.05)); // Cavity inner bottom curve
+    points.push(new THREE.Vector2(0.35, 0.00)); // Inner bottom rim
 
-    // 2. Outer Base & Exposed Color Ring
-    points.push(new THREE.Vector2(0.48, 0.00)); // Outer bottom corner
-    points.push(new THREE.Vector2(0.48, 0.06)); // Base vertical lip
-    points.push(new THREE.Vector2(0.44, 0.12)); // Base bevel
-    points.push(new THREE.Vector2(0.42, 0.18)); // Exposed color ring
-    points.push(new THREE.Vector2(0.35, 0.22)); // Nesting shoulder step (stopping ledge)
+    // 2. Outer Base Lip & Prominent Base Ring
+    points.push(new THREE.Vector2(0.44, 0.00)); // Bottom outer edge
+    points.push(new THREE.Vector2(0.45, 0.03)); // Base outer lip
+    points.push(new THREE.Vector2(0.45, 0.16)); // Vertical base ring cylinder
+    points.push(new THREE.Vector2(0.41, 0.20)); // Beveled top of base ring
+    points.push(new THREE.Vector2(0.33, 0.22)); // Nesting shoulder step (stopping ledge)
 
-    // 3. Tapered Body & Collar Ring
-    points.push(new THREE.Vector2(0.30, 0.35)); // Waist
-    points.push(new THREE.Vector2(0.35, 0.44)); // Upper collar
-    points.push(new THREE.Vector2(0.22, 0.56)); // Neck
+    // 3. Smooth Conical Body & Neck Collar
+    points.push(new THREE.Vector2(0.30, 0.28)); // Lower waist
+    points.push(new THREE.Vector2(0.25, 0.55)); // Conical body taper
+    points.push(new THREE.Vector2(0.21, 0.68)); // Upper neck taper
+    points.push(new THREE.Vector2(0.24, 0.74)); // Neck collar ring
+    points.push(new THREE.Vector2(0.18, 0.78)); // Neck indent
 
     // 4. Spherical Head
-    points.push(new THREE.Vector2(0.28, 0.68));
-    points.push(new THREE.Vector2(0.30, 0.76)); // Head equator
-    points.push(new THREE.Vector2(0.20, 0.86));
-    points.push(new THREE.Vector2(0.00, 0.88)); // Head top
+    points.push(new THREE.Vector2(0.24, 0.84)); // Lower head curve
+    points.push(new THREE.Vector2(0.28, 0.94)); // Head equator
+    points.push(new THREE.Vector2(0.20, 1.06)); // Upper head curve
+    points.push(new THREE.Vector2(0.00, 1.10)); // Top center of head
 
-    const latheGeo = new THREE.LatheGeometry(points, 32);
+    const latheGeo = new THREE.LatheGeometry(points, 36);
     latheGeo.computeVertexNormals();
     this.sharedPawnGeometry = latheGeo;
     return latheGeo;
@@ -267,11 +270,11 @@ export class Ludo3DEngine {
 
   private getStackOffset(subIdx: number, count: number): { x: number; y: number; z: number } {
     if (count <= 1) return { x: 0, y: 0, z: 0 };
-    // Nesting stack offset: each pawn sits on the stopping ledge (y = 0.24) with a micro 3D stagger
+    // Nesting stack offset: each pawn sits on the stopping ledge (y = 0.22) with a micro 3D stagger
     return {
-      x: subIdx * 0.04,
-      y: subIdx * 0.24,
-      z: -subIdx * 0.04
+      x: subIdx * 0.03,
+      y: subIdx * 0.22,
+      z: -subIdx * 0.03
     };
   }
 
