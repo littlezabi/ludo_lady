@@ -590,13 +590,21 @@ export class Ludo3DEngine {
       const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
       const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
 
-      // Side track position fixed on the 3D board floor
+      // Position indicator on the inner track line outside the pawn base (pawn base radius is 0.45, so 0.50 offset sits cleanly beside pawn)
       const len = Math.hypot(p3d.x, p3d.z);
-      const dirX = len > 0.1 ? p3d.x / len : 1;
-      const dirZ = len > 0.1 ? p3d.z / len : 0;
-      const sideTrackX = p3d.x + dirX * 0.28;
-      const sideTrackZ = p3d.z + dirZ * 0.28;
-      const boardSurfaceY = 0.27; // Flat on 3D board floor surface
+      let dirX = 0;
+      let dirZ = 0;
+      if (len > 0.1) {
+        dirX = -p3d.x / len;
+        dirZ = -p3d.z / len;
+      } else {
+        dirX = 0;
+        dirZ = -1;
+      }
+
+      const sideTrackX = p3d.x + dirX * 0.50;
+      const sideTrackZ = p3d.z + dirZ * 0.50;
+      const boardSurfaceY = 0.285; // Raised above board floor (y = 0.26) for zero Z-fighting & 100% clean visibility
 
       const totalDots = item.totalCount;
       const boxWidth = totalDots * dotDiameter + (totalDots - 1) * dotSpacing + 0.08;
@@ -604,7 +612,7 @@ export class Ludo3DEngine {
 
       // 1. Dark compact background box plane fixed on board floor
       const bgGeo = new THREE.PlaneGeometry(boxWidth, boxHeight);
-      const bgMat = new THREE.MeshBasicMaterial({ color: 0x090d16, side: THREE.DoubleSide });
+      const bgMat = new THREE.MeshBasicMaterial({ color: 0x090d16, side: THREE.DoubleSide, depthTest: true });
       const bgMesh = new THREE.Mesh(bgGeo, bgMat);
       bgMesh.rotation.x = -Math.PI / 2;
       bgMesh.position.set(sideTrackX, boardSurfaceY, sideTrackZ);
@@ -628,7 +636,7 @@ export class Ludo3DEngine {
               const borderMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
               const borderMesh = new THREE.Mesh(borderGeo, borderMat);
               borderMesh.rotation.x = -Math.PI / 2;
-              borderMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.001, sideTrackZ);
+              borderMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.002, sideTrackZ);
               this.stackIndicatorGroup.add(borderMesh);
             }
 
@@ -636,7 +644,7 @@ export class Ludo3DEngine {
             const dotMat = new THREE.MeshBasicMaterial({ color: colHex, side: THREE.DoubleSide });
             const dotMesh = new THREE.Mesh(dotGeo, dotMat);
             dotMesh.rotation.x = -Math.PI / 2;
-            dotMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.002, sideTrackZ);
+            dotMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.004, sideTrackZ);
             this.stackIndicatorGroup.add(dotMesh);
 
             dotIdx++;
