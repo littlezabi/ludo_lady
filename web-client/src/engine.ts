@@ -20,10 +20,12 @@ export class Ludo3DEngine {
   private pawnWaypoints: Map<number, THREE.Vector3[]> = new Map();
   private tokenPreviousSteps: Map<number, number> = new Map();
   private tokenPreviousPositions: Map<number, number> = new Map();
+  private stackArrivalOrder: Map<number, number[]> = new Map();
+  private currentPositionGroups: Map<number, number[]> = new Map();
   private capturedRewindTokens: Set<number> = new Set();
   private highlightRings: THREE.Mesh[] = [];
   private diceMesh!: THREE.Mesh;
-  private isDiceRolling = false;
+  public isDiceRolling = false;
   private diceTargetRotation = new THREE.Euler();
   private stackIndicatorGroup = new THREE.Group();
   private dirLight!: THREE.DirectionalLight;
@@ -379,21 +381,53 @@ export class Ludo3DEngine {
       Blue: 0x3b82f6
     };
 
-    // Group active tokens on the board (pos != -1 and pos != 999) by position to compute vertical stacking
-    const positionGroups: Map<number, number[]> = new Map();
+    // 1. Group active tokens on board by stack key (excluding home -1; for pos 999, group per color so finished pieces stack in center)
+    const positionToActiveTokens = new Map<number, number[]>();
     state.tokens.forEach(t => {
-      if (t.position !== -1 && t.position !== 999) {
-        const group = positionGroups.get(t.position) || [];
-        group.push(t.id);
-        positionGroups.set(t.position, group);
+      if (t.position !== -1) {
+        const stackKey = t.position === 999 ? (9990 + Math.floor(t.id / 4)) : t.position;
+        const list = positionToActiveTokens.get(stackKey) || [];
+        list.push(t.id);
+        positionToActiveTokens.set(stackKey, list);
       }
     });
+
+    // 2. Update stackArrivalOrder for each position / stack key
+    positionToActiveTokens.forEach((activeTokenIds, stackKey) => {
+      const existingOrder = this.stackArrivalOrder.get(stackKey) || [];
+
+      // Keep existing tokens that are STILL at stackKey and did NOT move in from another tile
+      const remainingInOrder = existingOrder.filter(id => {
+        const isStillAtPos = activeTokenIds.includes(id);
+        const prevPos = this.tokenPreviousPositions.get(id);
+        const prevStackKey = (prevPos === 999) ? (9990 + Math.floor(id / 4)) : prevPos;
+        return isStillAtPos && prevStackKey === stackKey;
+      });
+
+      // Find tokens that are newly at stackKey (either prevPos !== pos or wasn't in existing order)
+      const newlyArrived = activeTokenIds.filter(id => !remainingInOrder.includes(id));
+
+      // New arrival order: remaining stay at bottom/middle, newly arrived placed at end (VERY TOP)
+      const newOrder = [...remainingInOrder, ...newlyArrived];
+      this.stackArrivalOrder.set(stackKey, newOrder);
+    });
+
+    // 3. Clean up stackArrivalOrder for positions that no longer have any active tokens
+    this.stackArrivalOrder.forEach((_, stackKey) => {
+      if (!positionToActiveTokens.has(stackKey)) {
+        this.stackArrivalOrder.delete(stackKey);
+      }
+    });
+
+    // 4. Synchronize currentPositionGroups
+    this.currentPositionGroups = new Map(this.stackArrivalOrder);
 
     state.tokens.forEach((token) => {
       let mesh = this.pawnMeshes.get(token.id);
 
-      // Determine if token is a lower layer in a multi-pawn stack
-      const group = positionGroups.get(token.position);
+      // Determine if token is a lower layer in a multi-pawn stack using physical arrival order
+      const stackKey = token.position === 999 ? (9990 + Math.floor(token.id / 4)) : token.position;
+      const group = this.currentPositionGroups.get(stackKey);
       const isLowerLayerInStack = group && group.length > 1 && group.indexOf(token.id) < group.length - 1;
       const targetGeo = isLowerLayerInStack ? this.createSolidBaseDiscGeometry() : this.createHollowPawnGeometry();
 
@@ -419,10 +453,10 @@ export class Ludo3DEngine {
       }
 
       // Calculate Target 3D Position
-      const colorIdx = Math.floor(state.tokens.indexOf(token) / 4);
+      const colorIdx = Math.floor(token.id / 4);
       let p3d = getTile3DPosition(token.position, token.id, colorIdx);
 
-      // Apply 3D Vertical Stacking Offset if multiple pawns share the same board block
+      // Apply 3D Vertical Stacking Offset: subIdx from arrival order ensures LAST-IN is on VERY TOP!
       if (group && group.length > 1) {
         const subIdx = group.indexOf(token.id);
         const offset = this.getStackOffset(subIdx, group.length);
@@ -494,7 +528,8 @@ export class Ludo3DEngine {
       const targetPos = this.pawnTargetPositions.get(id);
       if (targetPos && this.lastGameState) {
         const token = this.lastGameState.tokens.find(t => t.id === id);
-        const colName = token ? token.color : 'Red';
+        if (!token) return;
+        const colName = token.color;
         const colHex = colorHexMap[colName] || 0xef4444;
 
         // Group container for high-contrast dual-shell triangle
@@ -529,8 +564,15 @@ export class Ludo3DEngine {
         triGroup.add(outerMesh);
         triGroup.add(innerMesh);
 
-        // Float height set to 1.35 so there is clear 3D air gap above pawn head
-        const floatY = targetPos.y + 1.35;
+        // Always compute float height relative to the VERY TOP of the stack on that tile
+        const group = this.currentPositionGroups.get(token.position);
+        const stackCount = group ? group.length : 1;
+        const topStackYOffset = (stackCount - 1) * 0.22;
+
+        const colorIdx = Math.floor(token.id / 4);
+        const baseTileP3D = getTile3DPosition(token.position, token.id, colorIdx);
+        const floatY = baseTileP3D.y + topStackYOffset + 1.45;
+
         triGroup.position.set(targetPos.x, floatY, targetPos.z);
         triGroup.userData = { id, baseFloatY: floatY, innerMat };
 
@@ -749,6 +791,9 @@ export class Ludo3DEngine {
 
     // Update Floating Sleep / Snoring Emoji Position
     this.updateSleepEmojiPosition();
+
+    // Update Floating King Crown & Ranking Badges Position
+    this.updateCrownBadges();
 
     this.renderer.render(this.scene, this.camera);
   }
@@ -1023,6 +1068,64 @@ export class Ludo3DEngine {
 
     this.sleepEmojiElement.style.left = `${screenX}px`;
     this.sleepEmojiElement.style.top = `${screenY}px`;
+  }
+
+  public updateCrownBadges(): void {
+    let container = document.getElementById('crown-overlay-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'crown-overlay-container';
+      container.style.position = 'absolute';
+      container.style.inset = '0';
+      container.style.pointerEvents = 'none';
+      container.style.zIndex = '160';
+      container.style.overflow = 'hidden';
+      this.container.appendChild(container);
+    }
+
+    container.innerHTML = '';
+
+    if (!this.lastGameState) return;
+
+    const ranks = this.lastGameState.winners_rank || (this.lastGameState.winner !== null ? [this.lastGameState.winner] : []);
+    if (!ranks || ranks.length === 0) return;
+
+    const homeCorners = [
+      new THREE.Vector3(-4.45, 2.5, -4.45), // Red (0)
+      new THREE.Vector3(4.45, 2.5, -4.45),  // Green (1)
+      new THREE.Vector3(4.45, 2.5, 4.45),   // Yellow (2)
+      new THREE.Vector3(-4.45, 2.5, 4.45)   // Blue (3)
+    ];
+
+    const animTime = performance.now() * 0.003;
+    const rankLabels = ['👑 1st KING', '🥈 2nd', '🥉 3rd', '4th'];
+
+    ranks.forEach((playerIdx, rankIdx) => {
+      const safeIdx = Math.max(0, Math.floor(playerIdx)) % 4;
+      const corner = homeCorners[safeIdx];
+      if (!corner) return;
+
+      const worldPos = corner.clone();
+      worldPos.y += Math.sin(animTime * 3 + safeIdx) * 0.15; // Gentle floating bobbing
+
+      const vector = worldPos.clone();
+      vector.project(this.camera);
+
+      const canvas = this.renderer.domElement;
+      const widthHalf = canvas.clientWidth / 2;
+      const heightHalf = canvas.clientHeight / 2;
+
+      const screenX = (vector.x * widthHalf) + widthHalf;
+      const screenY = -(vector.y * heightHalf) + heightHalf;
+
+      const badge = document.createElement('div');
+      badge.className = `crown-badge rank-${Math.min(3, rankIdx + 1)}`;
+      badge.style.left = `${screenX}px`;
+      badge.style.top = `${screenY}px`;
+      badge.innerHTML = `<span>${rankLabels[rankIdx] || 'Finished'}</span>`;
+
+      container.appendChild(badge);
+    });
   }
 
   private updateCameraAspect(): void {

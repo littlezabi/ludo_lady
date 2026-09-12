@@ -47,23 +47,29 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
     };
   }
 
-  // 2. Finished Center Positions (999)
+  // 2. Finished Center Positions (999) - Exact Centroids of 4 Colored Home Triangles
   if (positionCode === 999) {
     const centerOffsets = [
-      { x: -0.8, z: -0.8 }, // Red
-      { x: -0.8, z: 0.8 },  // Green
-      { x: 0.8, z: 0.8 },   // Yellow
-      { x: 0.8, z: -0.8 }    // Blue
+      { x: -1.15, z: 0.0 },  // Red (Left Triangle - aligned with row 7 stretch)
+      { x: 0.0, z: -1.15 },  // Green (Top Triangle - aligned with col 7 stretch)
+      { x: 1.15, z: 0.0 },   // Yellow (Right Triangle - aligned with row 7 stretch)
+      { x: 0.0, z: 1.15 }    // Blue (Bottom Triangle - aligned with col 7 stretch)
     ];
+
     const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
-    const co = centerOffsets[safeColorIdx] || centerOffsets[0];
-    return { x: co.x, y: yPos + 0.05, z: co.z };
+    const baseCo = centerOffsets[safeColorIdx] || centerOffsets[0];
+
+    return {
+      x: baseCo.x,
+      y: yPos + 0.05,
+      z: baseCo.z
+    };
   }
 
   // 3. Home Stretch Positions (100..105, 200..205, 300..305, 400..405)
   if (positionCode >= 100) {
     const colorType = Math.floor(positionCode / 100);
-    const step = (positionCode % 100) + 1; // 1 to 5 steps
+    const step = positionCode % 100; // 1 to 5 steps
 
     switch (colorType) {
       case 1: // Red Stretch (moving right from col 1 to 5, row 7)

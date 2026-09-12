@@ -279,8 +279,9 @@ function updateRoomDisplay(label: string) {
 
 function handleRollDice() {
   resetIdleTimer();
-  if (gameState.winner !== null) return;
-  if (gameState.dice_roll > 0 && validTokenIds.length > 0) return; // Must move first
+  if (gameState.is_game_over) return;
+  if (engine && engine.isDiceRolling) return;
+  if (gameState.dice_roll > 0 && validTokenIds.length > 0) return; // Strict lock: must move piece first!
 
   sounds.playClick();
   gameState = rollDiceState(gameState);
@@ -600,27 +601,36 @@ function updateUI() {
   const actionLogEl = document.getElementById('action-log')!;
   actionLogEl.textContent = `${gameState.last_action}`;
 
-  // Roll Button State
+  // Roll Button State (Strictly lock button when dice is rolling, when valid moves exist, or when match is complete)
   const btnRoll = document.getElementById('btn-roll') as HTMLButtonElement;
-  if (gameState.dice_roll > 0 && validTokenIds.length > 0) {
-    btnRoll.disabled = true;
-    btnRoll.classList.add('opacity-50');
-  } else {
-    btnRoll.disabled = gameState.winner !== null;
-    btnRoll.classList.remove('opacity-50');
+  const isRollLocked = (engine && engine.isDiceRolling) || (gameState.dice_roll > 0 && validTokenIds.length > 0) || !!gameState.is_game_over;
+  if (btnRoll) {
+    btnRoll.disabled = isRollLocked;
+    if (isRollLocked) {
+      btnRoll.classList.add('opacity-50');
+      btnRoll.classList.add('cursor-not-allowed');
+    } else {
+      btnRoll.classList.remove('opacity-50');
+      btnRoll.classList.remove('cursor-not-allowed');
+    }
   }
 
-  // Winner Announcement Modal
-  if (gameState.winner !== null) {
-    const winnerModal = document.getElementById('winner-modal')!;
-    const winnerText = document.getElementById('winner-text')!;
-    if (gameState.is_team_mode) {
-      const winningTeamName = gameState.winner % 2 === 0 ? "RED & YELLOW (Team A)" : "GREEN & BLUE (Team B)";
-      winnerText.textContent = `🎉 TEAM ${winningTeamName} HAS WON THE MATCH!`;
+  // Winner Announcement Modal (Shown ONLY when the entire match is finished for all active players!)
+  const winnerModal = document.getElementById('winner-modal');
+  if (winnerModal) {
+    if (gameState.is_game_over) {
+      const winnerText = document.getElementById('winner-text')!;
+      if (gameState.is_team_mode) {
+        const winningTeamName = (gameState.winner ?? 0) % 2 === 0 ? "RED & YELLOW (Team A)" : "GREEN & BLUE (Team B)";
+        winnerText.textContent = `🎉 TEAM ${winningTeamName} HAS WON THE MATCH!`;
+      } else {
+        const champIdx = gameState.winners_rank && gameState.winners_rank.length > 0 ? gameState.winners_rank[0] : (gameState.winner ?? 0);
+        winnerText.textContent = `🎉 PLAYER ${turnColors[champIdx]} IS THE 👑 CHAMPION!`;
+      }
+      winnerModal.style.display = 'flex';
     } else {
-      winnerText.textContent = `🎉 PLAYER ${turnColors[gameState.winner]} HAS WON!`;
+      winnerModal.style.display = 'none';
     }
-    winnerModal.style.display = 'flex';
   }
 
   // Update Developer Debug Status Banner
