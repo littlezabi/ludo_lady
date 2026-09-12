@@ -600,8 +600,8 @@
     }
 
     .capture-emoji-bubble .emoji-icon {
-      font-size: 3.5rem;
-      filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.7));
+      font-size: 2.2rem;
+      filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.7));
       line-height: 1;
     }
 
@@ -768,52 +768,49 @@
       justify-content: center;
       pointer-events: none;
       z-index: 400;
-      animation: sixPopBounce 2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      animation: sixPopBounce 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
 
     .dice-six-bubble .six-icon {
-      font-size: 3.2rem;
-      filter: drop-shadow(0 10px 25px rgba(245, 158, 11, 0.85));
+      font-size: 1.6rem;
+      filter: drop-shadow(0 4px 10px rgba(245, 158, 11, 0.8));
       line-height: 1;
     }
 
     .dice-six-bubble .six-label {
-      font-size: 0.85rem;
+      font-size: 0.7rem;
       font-weight: 900;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      padding: 0.35rem 0.85rem;
+      padding: 0.2rem 0.6rem;
       border-radius: 9999px;
-      margin-top: 0.4rem;
+      margin-top: 0.25rem;
       white-space: nowrap;
       background: linear-gradient(135deg, #eab308, #f97316);
       color: #0f172a;
-      border: 2px solid #ffffff;
-      box-shadow: 0 4px 20px rgba(234, 179, 8, 0.7), 0 0 30px rgba(249, 115, 22, 0.5);
+      border: 1.5px solid #ffffff;
+      box-shadow: 0 4px 12px rgba(234, 179, 8, 0.5);
     }
 
     @keyframes sixPopBounce {
       0% {
         opacity: 0;
-        transform: translate(-50%, 30px) scale(0.1) rotate(-20deg);
+        transform: translate(-50%, 15px) scale(0.3) rotate(-10deg);
       }
-      20% {
+      25% {
         opacity: 1;
-        transform: translate(-50%, -40px) scale(1.5) rotate(10deg);
+        transform: translate(-50%, -20px) scale(1.08) rotate(5deg);
       }
-      35% {
-        transform: translate(-50%, -25px) scale(0.95) rotate(-5deg);
+      40% {
+        transform: translate(-50%, -15px) scale(0.95) rotate(-2deg);
       }
-      50% {
-        transform: translate(-50%, -32px) scale(1.1) rotate(0deg);
-      }
-      75% {
+      70% {
         opacity: 1;
-        transform: translate(-50%, -55px) scale(1) rotate(0deg);
+        transform: translate(-50%, -30px) scale(1) rotate(0deg);
       }
       100% {
         opacity: 0;
-        transform: translate(-50%, -90px) scale(0.5) rotate(0deg);
+        transform: translate(-50%, -45px) scale(0.7) rotate(0deg);
       }
     }
 

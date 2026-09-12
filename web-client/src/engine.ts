@@ -287,15 +287,15 @@ export class Ludo3DEngine {
     bubble.style.top = `${screenY}px`;
 
     bubble.innerHTML = `
-      <div class="six-icon">🔥 🎲6️⃣ 🔥</div>
-      <div class="six-label">BONUS ROLL 6!</div>
+      <div class="six-icon">✨ 6! ✨</div>
+      <div class="six-label">BONUS ROLL</div>
     `;
 
     overlayContainer.appendChild(bubble);
 
     setTimeout(() => {
       bubble.remove();
-    }, 2000);
+    }, 1500);
   }
 
   public selectedDebugTokenId: number | null = null;
