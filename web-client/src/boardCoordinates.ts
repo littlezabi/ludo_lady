@@ -63,7 +63,7 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
   // 3. Home Stretch Positions (100..105, 200..205, 300..305, 400..405)
   if (positionCode >= 100) {
     const colorType = Math.floor(positionCode / 100);
-    const step = (positionCode % 100) + 1; // 1 to 5 steps
+    const step = positionCode % 100; // 1 to 5 steps
 
     switch (colorType) {
       case 1: // Red Stretch (moving right from col 1 to 5, row 7)
