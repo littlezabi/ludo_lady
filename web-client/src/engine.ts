@@ -590,27 +590,37 @@ export class Ludo3DEngine {
       const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
       const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
 
-      // Position indicator on the inner track line outside the pawn base (pawn base radius is 0.45, so 0.50 offset sits cleanly beside pawn)
-      const len = Math.hypot(p3d.x, p3d.z);
-      let dirX = 0;
-      let dirZ = 0;
-      if (len > 0.1) {
-        dirX = -p3d.x / len;
-        dirZ = -p3d.z / len;
+      // Calculate compact box dimensions for dots
+      const totalDots = item.totalCount;
+      const dotRadius = 0.055;
+      const dotDiameter = dotRadius * 2;
+      const dotSpacing = 0.04;
+
+      const dotLineLength = totalDots * dotDiameter + (totalDots - 1) * dotSpacing + 0.08;
+      const boxBreadth = dotDiameter + 0.08;
+
+      // Determine arm orientation: Vertical arm (|z| > |x|) vs Horizontal arm (|x| >= |z|)
+      const isVerticalArm = Math.abs(p3d.z) > Math.abs(p3d.x);
+
+      let sideTrackX = p3d.x;
+      let sideTrackZ = p3d.z;
+
+      if (isVerticalArm) {
+        // Track runs in Z -> Side track is in X (perpendicular to track)
+        const offsetDirection = p3d.x >= 0 ? 1 : -1;
+        sideTrackX = p3d.x + offsetDirection * 0.70;
       } else {
-        dirX = 0;
-        dirZ = -1;
+        // Track runs in X -> Side track is in Z (perpendicular to track)
+        const offsetDirection = p3d.z >= 0 ? 1 : -1;
+        sideTrackZ = p3d.z + offsetDirection * 0.70;
       }
 
-      const sideTrackX = p3d.x + dirX * 0.50;
-      const sideTrackZ = p3d.z + dirZ * 0.50;
-      const boardSurfaceY = 0.285; // Raised above board floor (y = 0.26) for zero Z-fighting & 100% clean visibility
+      const boardSurfaceY = 0.285; // Raised slightly above board floor (y = 0.26) for zero Z-fighting & 100% clean visibility
 
-      const totalDots = item.totalCount;
-      const boxWidth = totalDots * dotDiameter + (totalDots - 1) * dotSpacing + 0.08;
-      const boxHeight = dotDiameter + 0.08;
+      // 1. Dark compact background box plane fixed on side track margin
+      const boxWidth = isVerticalArm ? boxBreadth : dotLineLength;
+      const boxHeight = isVerticalArm ? dotLineLength : boxBreadth;
 
-      // 1. Dark compact background box plane fixed on board floor
       const bgGeo = new THREE.PlaneGeometry(boxWidth, boxHeight);
       const bgMat = new THREE.MeshBasicMaterial({ color: 0x090d16, side: THREE.DoubleSide, depthTest: true });
       const bgMesh = new THREE.Mesh(bgGeo, bgMat);
@@ -618,8 +628,8 @@ export class Ludo3DEngine {
       bgMesh.position.set(sideTrackX, boardSurfaceY, sideTrackZ);
       this.stackIndicatorGroup.add(bgMesh);
 
-      // 2. Render small flat circular dot meshes inside dark background box
-      const startX = -boxWidth / 2 + 0.04 + dotRadius;
+      // 2. Render small flat circular dot meshes inside dark background box along the side track line
+      const startOffset = -dotLineLength / 2 + 0.04 + dotRadius;
       let dotIdx = 0;
 
       const order = ['Red', 'Green', 'Yellow', 'Blue'];
@@ -628,7 +638,9 @@ export class Ludo3DEngine {
         if (cnt && cnt > 0) {
           const colHex = colorHexMap[col] || 0xffffff;
           for (let i = 0; i < cnt; i++) {
-            const posX = startX + dotIdx * (dotDiameter + dotSpacing);
+            const stepOffset = startOffset + dotIdx * (dotDiameter + dotSpacing);
+            const posX = isVerticalArm ? 0 : stepOffset;
+            const posZ = isVerticalArm ? stepOffset : 0;
 
             // Add dark border ring underneath yellow dot to ensure 100% contrast with yellow track tiles
             if (col === 'Yellow') {
@@ -636,7 +648,7 @@ export class Ludo3DEngine {
               const borderMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
               const borderMesh = new THREE.Mesh(borderGeo, borderMat);
               borderMesh.rotation.x = -Math.PI / 2;
-              borderMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.002, sideTrackZ);
+              borderMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.002, sideTrackZ + posZ);
               this.stackIndicatorGroup.add(borderMesh);
             }
 
@@ -644,7 +656,7 @@ export class Ludo3DEngine {
             const dotMat = new THREE.MeshBasicMaterial({ color: colHex, side: THREE.DoubleSide });
             const dotMesh = new THREE.Mesh(dotGeo, dotMat);
             dotMesh.rotation.x = -Math.PI / 2;
-            dotMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.004, sideTrackZ);
+            dotMesh.position.set(sideTrackX + posX, boardSurfaceY + 0.004, sideTrackZ + posZ);
             this.stackIndicatorGroup.add(dotMesh);
 
             dotIdx++;
