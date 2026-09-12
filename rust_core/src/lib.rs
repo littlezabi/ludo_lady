@@ -6,7 +6,13 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub fn create_game(num_players: u8) -> String {
-    let state = GameState::new(num_players);
+    create_game_mode(num_players, false)
+}
+
+#[wasm_bindgen]
+pub fn create_game_mode(num_players: u8, is_team_mode: bool) -> String {
+    let mut state = GameState::new(num_players);
+    state.is_team_mode = is_team_mode;
     serde_json::to_string(&state).unwrap_or_default()
 }
 

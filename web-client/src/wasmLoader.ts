@@ -1,4 +1,4 @@
-import init, { create_game, roll_dice, get_valid_tokens, move_token } from './wasm_pkg/rust_core.js';
+import init, { create_game, create_game_mode, roll_dice, get_valid_tokens, move_token } from './wasm_pkg/rust_core.js';
 
 export interface TokenState {
   id: number;
@@ -15,6 +15,7 @@ export interface GameState {
   winner: number | null;
   tokens: TokenState[];
   last_action: String;
+  is_team_mode?: boolean;
 }
 
 let isInitialized = false;
@@ -26,8 +27,8 @@ export async function initWasmModule(): Promise<void> {
   }
 }
 
-export function newGame(numPlayers: number = 4): GameState {
-  const jsonStr = create_game(numPlayers);
+export function newGame(numPlayers: number = 4, isTeamMode: boolean = false): GameState {
+  const jsonStr = create_game_mode(numPlayers, isTeamMode);
   return JSON.parse(jsonStr);
 }
 

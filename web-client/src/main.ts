@@ -117,6 +117,8 @@ function handleRemoteStateUpdate(remoteState: GameState) {
   updateUI();
 }
 
+let selectedGameMode: 'classic' | 'team' = 'classic';
+
 function setupMenuControls() {
   const mainMenuOverlay = document.getElementById('main-menu-overlay')!;
   const tabCreate = document.getElementById('tab-create')!;
@@ -129,6 +131,23 @@ function setupMenuControls() {
 
   const generatedCodeEl = document.getElementById('generated-room-code')!;
   const btnCopy = document.getElementById('btn-copy-generated')!;
+
+  // Game Mode Selector Sync (Classic 4P vs 2v2 Team Mode)
+  const modeBtns = document.querySelectorAll<HTMLButtonElement>('.mode-select-btn');
+  modeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      sounds.playClick();
+      const mode = (btn.dataset.mode as 'classic' | 'team') || 'classic';
+      selectedGameMode = mode;
+      modeBtns.forEach(b => {
+        if (b.dataset.mode === selectedGameMode) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+    });
+  });
 
   // Generate Initial Room Code
   generatedRoomCode = generateRoomCode();
@@ -164,9 +183,10 @@ function setupMenuControls() {
     sounds.playClick();
     const select = document.getElementById('menu-player-count') as HTMLSelectElement;
     const numPlayers = parseInt(select.value, 10);
+    const isTeamMode = selectedGameMode === 'team';
 
     roomCode = generatedRoomCode;
-    gameState = newGame(numPlayers);
+    gameState = newGame(numPlayers, isTeamMode);
     validTokenIds = [];
 
     // Connect to Supabase Room Channel
@@ -176,7 +196,7 @@ function setupMenuControls() {
 
     broadcastGameState(gameState);
 
-    updateRoomDisplay(`Room: ${roomCode}`);
+    updateRoomDisplay(`Room: ${roomCode} ${isTeamMode ? '(2v2 Teams)' : ''}`);
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -206,10 +226,11 @@ function setupMenuControls() {
   document.getElementById('btn-start-local-game')?.addEventListener('click', () => {
     sounds.playClick();
     roomCode = null;
-    gameState = newGame(4);
+    const isTeamMode = selectedGameMode === 'team';
+    gameState = newGame(4, isTeamMode);
     validTokenIds = [];
 
-    updateRoomDisplay("Local Match");
+    updateRoomDisplay(isTeamMode ? "Local Match (2v2 Teams)" : "Local Match");
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -561,7 +582,12 @@ function updateUI() {
 
   // Turn Badge
   const turnBadge = document.getElementById('turn-badge')!;
-  turnBadge.textContent = `${currentTurnColor}'s Turn`;
+  if (gameState.is_team_mode) {
+    const teamLabel = gameState.current_turn % 2 === 0 ? "Team A (Red & Yellow)" : "Team B (Green & Blue)";
+    turnBadge.textContent = `${currentTurnColor}'s Turn [${teamLabel}]`;
+  } else {
+    turnBadge.textContent = `${currentTurnColor}'s Turn`;
+  }
   turnBadge.style.backgroundColor = `${currentTurnHex}22`;
   turnBadge.style.color = currentTurnHex;
   turnBadge.style.borderColor = currentTurnHex;
@@ -588,7 +614,12 @@ function updateUI() {
   if (gameState.winner !== null) {
     const winnerModal = document.getElementById('winner-modal')!;
     const winnerText = document.getElementById('winner-text')!;
-    winnerText.textContent = `🎉 PLAYER ${turnColors[gameState.winner]} HAS WON!`;
+    if (gameState.is_team_mode) {
+      const winningTeamName = gameState.winner % 2 === 0 ? "RED & YELLOW (Team A)" : "GREEN & BLUE (Team B)";
+      winnerText.textContent = `🎉 TEAM ${winningTeamName} HAS WON THE MATCH!`;
+    } else {
+      winnerText.textContent = `🎉 PLAYER ${turnColors[gameState.winner]} HAS WON!`;
+    }
     winnerModal.style.display = 'flex';
   }
 
@@ -606,6 +637,12 @@ function updateUI() {
       debugPawnLabel.textContent = 'None (Click any 3D piece on board)';
       debugPawnPosInfo.textContent = 'Position: -';
     }
+  }
+
+  // Update Debug HUD 2v2 Team Mode Toggle Checkbox
+  const debugTeamModeToggle = document.getElementById('debug-team-mode-toggle') as HTMLInputElement;
+  if (debugTeamModeToggle) {
+    debugTeamModeToggle.checked = !!gameState.is_team_mode;
   }
 
   // Update Header Cheats Button display
@@ -627,6 +664,16 @@ function setupDebugControls() {
 
   const configDebugToggle = document.getElementById('config-debug-toggle') as HTMLInputElement;
   const debugEnableToggle = document.getElementById('debug-enable-toggle') as HTMLInputElement;
+  const debugTeamModeToggle = document.getElementById('debug-team-mode-toggle') as HTMLInputElement;
+
+  if (debugTeamModeToggle) {
+    debugTeamModeToggle.addEventListener('change', () => {
+      sounds.playClick();
+      gameState.is_team_mode = debugTeamModeToggle.checked;
+      validTokenIds = getValidMoveTokenIds(gameState);
+      updateUI();
+    });
+  }
 
   const syncDebugToggles = (enabled: boolean) => {
     isDebugModeEnabled = enabled;

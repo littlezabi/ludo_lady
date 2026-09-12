@@ -11,6 +11,8 @@ pub struct GameState {
     pub winner: Option<u8>,
     pub tokens: Vec<Token>,
     pub last_action: String,
+    #[serde(default)]
+    pub is_team_mode: bool, // 2v2 Partnership Mode (Red+Yellow vs Green+Blue)
 }
 
 impl GameState {
@@ -33,6 +35,7 @@ impl GameState {
             winner: None,
             tokens,
             last_action: "Game initialized".to_string(),
+            is_team_mode: false,
         }
     }
 
@@ -83,8 +86,20 @@ impl GameState {
         let current_color = PlayerColor::from_idx(self.current_turn);
         let mut valid_token_ids = Vec::new();
 
+        // In 2v2 Team Mode: If player's own pieces are all finished, player can move teammate's pieces!
+        let own_tokens_finished = self.tokens.iter()
+            .filter(|t| t.color == current_color)
+            .all(|t| t.is_finished());
+
+        let target_color = if self.is_team_mode && own_tokens_finished {
+            let teammate_idx = (self.current_turn + 2) % 4;
+            PlayerColor::from_idx(teammate_idx)
+        } else {
+            current_color
+        };
+
         for token in &self.tokens {
-            if token.color != current_color || token.is_finished() {
+            if token.color != target_color || token.is_finished() {
                 continue;
             }
 
@@ -151,18 +166,25 @@ impl GameState {
                     let target_pos = new_track_pos;
                     let mut captured = false;
 
-                    // Count how many tokens of current player's color are at target_pos (including this newly moved token)
-                    let attacker_count = self.tokens.iter().filter(|t| {
-                        t.color == color
+                    let is_teammate = |c1: PlayerColor, c2: PlayerColor| -> bool {
+                        if !self.is_team_mode {
+                            return c1 == c2;
+                        }
+                        (c1 as u8 % 2) == (c2 as u8 % 2)
+                    };
+
+                    // Count friendly tokens (same color or teammate color in 2v2 mode) at target_pos
+                    let friendly_count = self.tokens.iter().filter(|t| {
+                        is_teammate(t.color, color)
                             && t.position == target_pos
                             && !t.is_at_base()
                             && !t.is_finished()
                     }).count();
 
-                    // Check opponent colors present at target_pos: capture only if attacker_count >= opp_count
+                    // Check opponent colors present at target_pos: capture only if friendly_count >= opp_count
                     let mut captured_colors = Vec::new();
                     for opp_color in [PlayerColor::Red, PlayerColor::Green, PlayerColor::Yellow, PlayerColor::Blue] {
-                        if opp_color == color {
+                        if is_teammate(opp_color, color) {
                             continue;
                         }
                         let opp_count = self.tokens.iter().filter(|t| {
@@ -172,7 +194,7 @@ impl GameState {
                                 && !t.is_finished()
                         }).count();
 
-                        if opp_count > 0 && attacker_count >= opp_count {
+                        if opp_count > 0 && friendly_count >= opp_count {
                             captured_colors.push(opp_color);
                         }
                     }
@@ -205,7 +227,12 @@ impl GameState {
         // Check Win Condition
         if self.check_winner(current_player) {
             self.winner = Some(current_player);
-            self.last_action = format!("🎉 PLAYER {} HAS WON THE GAME!", current_player);
+            if self.is_team_mode {
+                let team_name = if current_player % 2 == 0 { "RED & YELLOW" } else { "GREEN & BLUE" };
+                self.last_action = format!("🎉 TEAM {} HAS WON THE GAME!", team_name);
+            } else {
+                self.last_action = format!("🎉 PLAYER {} HAS WON THE GAME!", current_player);
+            }
             self.dice_roll = 0;
             return true;
         }
@@ -228,7 +255,15 @@ impl GameState {
     }
 
     fn check_winner(&self, player_idx: u8) -> bool {
-        let mut player_tokens = self.tokens.iter().filter(|t| t.color == PlayerColor::from_idx(player_idx));
-        player_tokens.all(|t| t.is_finished())
+        if self.is_team_mode {
+            let team_idx = player_idx % 2;
+            let color1 = PlayerColor::from_idx(team_idx);
+            let color2 = PlayerColor::from_idx(team_idx + 2);
+            let mut team_tokens = self.tokens.iter().filter(|t| t.color == color1 || t.color == color2);
+            team_tokens.all(|t| t.is_finished())
+        } else {
+            let mut player_tokens = self.tokens.iter().filter(|t| t.color == PlayerColor::from_idx(player_idx));
+            player_tokens.all(|t| t.is_finished())
+        }
     }
 }
