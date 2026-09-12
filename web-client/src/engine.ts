@@ -19,6 +19,8 @@ export class Ludo3DEngine {
   private pawnTargetPositions: Map<number, THREE.Vector3> = new Map();
   private pawnWaypoints: Map<number, THREE.Vector3[]> = new Map();
   private tokenPreviousSteps: Map<number, number> = new Map();
+  private tokenPreviousPositions: Map<number, number> = new Map();
+  private capturedDragTokens: Map<number, { startPos: THREE.Vector3; targetPos: THREE.Vector3; progress: number }> = new Map();
   private highlightRings: THREE.Mesh[] = [];
   private diceMesh!: THREE.Mesh;
   private isDiceRolling = false;
@@ -375,8 +377,21 @@ export class Ludo3DEngine {
       const targetVec = new THREE.Vector3(p3d.x, p3d.y, p3d.z);
 
       const prevSteps = this.tokenPreviousSteps.get(token.id) ?? (token.position === -1 ? -1 : token.steps_taken);
+      const prevPos = this.tokenPreviousPositions.get(token.id) ?? token.position;
 
-      if (token.steps_taken > prevSteps && prevSteps !== -1) {
+      // Detect hit/capture: token was active on board (prevPos !== -1) and now sent back to home base (position === -1)
+      if (prevPos !== -1 && token.position === -1) {
+        this.pawnWaypoints.delete(token.id);
+        const currentMeshPos = mesh.position.clone();
+
+        this.capturedDragTokens.set(token.id, {
+          startPos: currentMeshPos,
+          targetPos: targetVec.clone(),
+          progress: 0
+        });
+        this.pawnTargetPositions.set(token.id, targetVec);
+      } else if (token.steps_taken > prevSteps && prevSteps !== -1) {
+        this.capturedDragTokens.delete(token.id);
         // Generate step-by-step intermediate waypoints
         const pathPoints = getStepByStepPath(colorIdx, prevSteps, token.steps_taken, token.id);
         const waypointsVec = pathPoints.map((p, idx) => {
@@ -389,6 +404,7 @@ export class Ludo3DEngine {
         });
         this.pawnWaypoints.set(token.id, waypointsVec);
       } else if (prevSteps === -1 && token.steps_taken === 0) {
+        this.capturedDragTokens.delete(token.id);
         sounds.playPieceEntry();
         this.pawnTargetPositions.set(token.id, targetVec);
       } else {
@@ -396,6 +412,7 @@ export class Ludo3DEngine {
       }
 
       this.tokenPreviousSteps.set(token.id, token.steps_taken);
+      this.tokenPreviousPositions.set(token.id, token.position);
     });
 
     // Update Valid Moves & Selection Glow Highlight Rings
@@ -587,8 +604,28 @@ export class Ludo3DEngine {
       this.controls.update();
     }
 
-    // Step-by-Step Hopping Pawn Movement Animation
+    // Step-by-Step Hopping or Smooth Captured Drag Movement Animation
     this.pawnMeshes.forEach((mesh, id) => {
+      const dragInfo = this.capturedDragTokens.get(id);
+
+      if (dragInfo) {
+        // Smooth direct backward drag sliding motion to home base slot
+        dragInfo.progress = Math.min(1.0, dragInfo.progress + 0.032);
+
+        // Smooth cubic ease-out for natural dragging slide feel
+        const ease = 1 - Math.pow(1 - dragInfo.progress, 3);
+        mesh.position.lerpVectors(dragInfo.startPos, dragInfo.targetPos, ease);
+
+        // Maintain smooth ground slide height on board surface
+        mesh.position.y = 0.26 + Math.sin(dragInfo.progress * Math.PI) * 0.12;
+
+        if (dragInfo.progress >= 1.0) {
+          mesh.position.copy(dragInfo.targetPos);
+          this.capturedDragTokens.delete(id);
+        }
+        return;
+      }
+
       const waypoints = this.pawnWaypoints.get(id);
 
       if (waypoints && waypoints.length > 0) {
