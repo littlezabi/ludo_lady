@@ -366,6 +366,9 @@ export class Ludo3DEngine {
     };
   }
 
+  private stackArrivalOrder: Map<number, number[]> = new Map();
+  private currentPositionGroups: Map<number, number[]> = new Map();
+
   public updateState(state: GameState, validTokenIds: number[]): void {
     this.lastGameState = state;
 
@@ -379,21 +382,38 @@ export class Ludo3DEngine {
       Blue: 0x3b82f6
     };
 
-    // Group active tokens on the board (pos != -1 and pos != 999) by position to compute vertical stacking
-    const positionGroups: Map<number, number[]> = new Map();
+    // Update physical arrival sequence for every position (last-in token added to end of arrival list)
     state.tokens.forEach(t => {
       if (t.position !== -1 && t.position !== 999) {
-        const group = positionGroups.get(t.position) || [];
-        group.push(t.id);
-        positionGroups.set(t.position, group);
+        const order = this.stackArrivalOrder.get(t.position) || [];
+        if (!order.includes(t.id)) {
+          order.push(t.id);
+        }
+        this.stackArrivalOrder.set(t.position, order);
+      }
+    });
+
+    // Clean up stackArrivalOrder: retain only currently active tokens on board
+    this.currentPositionGroups = new Map();
+    this.stackArrivalOrder.forEach((order, pos) => {
+      const activeAtPos = state.tokens
+        .filter(t => t.position === pos && t.position !== -1 && t.position !== 999)
+        .map(t => t.id);
+
+      const cleanedOrder = order.filter(id => activeAtPos.includes(id));
+      if (cleanedOrder.length > 0) {
+        this.stackArrivalOrder.set(pos, cleanedOrder);
+        this.currentPositionGroups.set(pos, cleanedOrder);
+      } else {
+        this.stackArrivalOrder.delete(pos);
       }
     });
 
     state.tokens.forEach((token) => {
       let mesh = this.pawnMeshes.get(token.id);
 
-      // Determine if token is a lower layer in a multi-pawn stack
-      const group = positionGroups.get(token.position);
+      // Determine if token is a lower layer in a multi-pawn stack using physical arrival order
+      const group = this.currentPositionGroups.get(token.position);
       const isLowerLayerInStack = group && group.length > 1 && group.indexOf(token.id) < group.length - 1;
       const targetGeo = isLowerLayerInStack ? this.createSolidBaseDiscGeometry() : this.createHollowPawnGeometry();
 
@@ -422,7 +442,7 @@ export class Ludo3DEngine {
       const colorIdx = Math.floor(state.tokens.indexOf(token) / 4);
       let p3d = getTile3DPosition(token.position, token.id, colorIdx);
 
-      // Apply 3D Vertical Stacking Offset if multiple pawns share the same board block
+      // Apply 3D Vertical Stacking Offset: subIdx from arrival order ensures LAST-IN is on VERY TOP!
       if (group && group.length > 1) {
         const subIdx = group.indexOf(token.id);
         const offset = this.getStackOffset(subIdx, group.length);
@@ -494,7 +514,9 @@ export class Ludo3DEngine {
       const targetPos = this.pawnTargetPositions.get(id);
       if (targetPos && this.lastGameState) {
         const token = this.lastGameState.tokens.find(t => t.id === id);
-        const colName = token ? token.color : 'Red';
+        if (!token) return;
+
+        const colName = token.color;
         const colHex = colorHexMap[colName] || 0xef4444;
 
         // Group container for high-contrast dual-shell triangle
@@ -529,8 +551,15 @@ export class Ludo3DEngine {
         triGroup.add(outerMesh);
         triGroup.add(innerMesh);
 
-        // Float height set to 1.35 so there is clear 3D air gap above pawn head
-        const floatY = targetPos.y + 1.35;
+        // Always compute float height relative to the VERY TOP of the stack on that tile
+        const group = this.currentPositionGroups.get(token.position);
+        const stackCount = group ? group.length : 1;
+        const topStackYOffset = (stackCount - 1) * 0.22;
+
+        const colorIdx = Math.floor(this.lastGameState.tokens.indexOf(token) / 4);
+        const baseTileP3D = getTile3DPosition(token.position, token.id, colorIdx);
+        const floatY = baseTileP3D.y + topStackYOffset + 1.45;
+
         triGroup.position.set(targetPos.x, floatY, targetPos.z);
         triGroup.userData = { id, baseFloatY: floatY, innerMat };
 
