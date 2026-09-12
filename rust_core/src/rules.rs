@@ -16,8 +16,6 @@ pub struct GameState {
     #[serde(default)]
     pub winners_rank: Vec<u8>, // Ranking order of players as they finish (0: Red, 1: Green, 2: Yellow, 3: Blue)
     #[serde(default)]
-    pub is_game_over: bool, // True only when the entire match is finished for all active players
-    #[serde(default)]
     pub player_types: Vec<u8>, // 0: Human, 1: Computer AI
 }
 
@@ -317,6 +315,7 @@ impl GameState {
 
     fn check_winner(&self, player_idx: u8) -> bool {
         self.is_player_finished(player_idx)
+<<<<<<< HEAD
     }
 
     pub fn select_best_ai_move(&self) -> Option<u8> {
@@ -449,5 +448,7 @@ impl GameState {
         }
 
         Some(best_token_id)
+=======
+>>>>>>> main
     }
 }
