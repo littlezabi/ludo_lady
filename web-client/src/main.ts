@@ -10,6 +10,7 @@ let selectedDebugTokenId: number | null = null;
 let roomCode: string | null = null;
 let generatedRoomCode: string = '';
 let isDebugModeEnabled: boolean = localStorage.getItem('ludo_debug_mode') !== 'false';
+let customPlayerNames: string[] = ["Player 1", "Player 2", "Player 3", "Player 4"];
 
 let currentMatchConfig = {
   isVsComputer: false,
@@ -31,31 +32,62 @@ function resetIdleTimer() {
   }
 }
 
+function loadCustomPlayerNames() {
+  for (let i = 0; i < 4; i++) {
+    const input = document.getElementById(`input-player-name-${i}`) as HTMLInputElement;
+    if (input && input.value.trim()) {
+      customPlayerNames[i] = input.value.trim();
+    } else if (!customPlayerNames[i]) {
+      customPlayerNames[i] = `Player ${i + 1}`;
+    }
+  }
+  localStorage.setItem('ludo_player_names', JSON.stringify(customPlayerNames));
+}
+
+function restoreCustomPlayerNamesInput() {
+  const saved = localStorage.getItem('ludo_player_names');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length >= 4) {
+        customPlayerNames = parsed;
+        for (let i = 0; i < 4; i++) {
+          const input = document.getElementById(`input-player-name-${i}`) as HTMLInputElement;
+          if (input) input.value = parsed[i] || `Player ${i + 1}`;
+        }
+      }
+    } catch {}
+  }
+}
+
 function getPlayerColorInfo(state: GameState, playerIdx: number) {
+  const colorHexes = ['#ef4444', '#22c55e', '#eab308', '#3b82f6'];
+  const colorBaseNames = ['Red', 'Green', 'Yellow', 'Blue'];
+  let colorIdx = playerIdx;
+
   if (state.num_players === 2) {
-    return playerIdx === 0
-      ? { name: 'Red', hex: '#ef4444' }
-      : { name: 'Yellow', hex: '#eab308' };
+    colorIdx = playerIdx === 0 ? 0 : 2;
+  } else if (state.num_players === 3) {
+    colorIdx = playerIdx % 3;
+  } else {
+    colorIdx = playerIdx % 4;
   }
-  if (state.num_players === 3) {
-    const colors = [
-      { name: 'Red', hex: '#ef4444' },
-      { name: 'Green', hex: '#22c55e' },
-      { name: 'Yellow', hex: '#eab308' }
-    ];
-    return colors[playerIdx % 3];
-  }
-  const colors = [
-    { name: 'Red', hex: '#ef4444' },
-    { name: 'Green', hex: '#22c55e' },
-    { name: 'Yellow', hex: '#eab308' },
-    { name: 'Blue', hex: '#3b82f6' }
-  ];
-  return colors[playerIdx % 4];
+
+  const customName = customPlayerNames[playerIdx] || `Player ${playerIdx + 1}`;
+  const hex = colorHexes[colorIdx] || '#ef4444';
+
+  return { name: customName, colorName: colorBaseNames[colorIdx], hex };
+}
+
+function applyPersistentCamera() {
+  if (!engine) return;
+  const savedCameraView = (localStorage.getItem('ludo_camera_mode') as CameraViewMode) || 'top';
+  const savedPlayerColor = parseInt(localStorage.getItem('ludo_player_color') || '0', 10);
+  engine.setCameraViewMode(savedCameraView, savedPlayerColor);
 }
 
 function checkIdleTimer() {
-  if (!gameState || gameState.winner !== null) {
+  if (!gameState || gameState.is_game_over || gameState.winner !== null) {
     resetIdleTimer();
     return;
   }
@@ -92,25 +124,31 @@ async function bootstrap() {
     // 2. Initialize 3D Viewport
     engine = new Ludo3DEngine(canvasContainer);
 
-    // 3. Initialize Default 4-Player Local Game State
+    // 3. Restore Saved Player Names
+    restoreCustomPlayerNamesInput();
+
+    // 4. Apply Persistent Camera Setting (Default Top View, base_value = 19)
+    applyPersistentCamera();
+
+    // 5. Initialize Default 4-Player Local Game State
     gameState = newGame(4);
     updateUI();
 
-    // 4. Bind 3D Pawn Click/Touch
+    // 6. Bind 3D Pawn Click/Touch
     engine.setOnTokenClicked((tokenId: number, stackTokenIds: number[]) => {
       handlePawnClick(tokenId, stackTokenIds);
     });
 
-    // 5. Setup Menu, Config, and Debug Controls
+    // 7. Setup Menu, Config, and Debug Controls
     setupMenuControls();
     setupConfigControls();
     setupDebugControls();
     setupUIControls();
 
-    // 6. Start 10-Second Idle Detector Interval
+    // 8. Start 10-Second Idle Detector Interval
     setInterval(checkIdleTimer, 500);
 
-    // 7. Check URL query params for direct room join link (?room=123456)
+    // 9. Check URL query params for direct room join link (?room=123456)
     checkURLRoomCode();
 
     // Hide Loading Screen
@@ -259,6 +297,7 @@ function setupMenuControls() {
   // Create Room Button
   document.getElementById('btn-start-created-room')?.addEventListener('click', () => {
     sounds.playClick();
+    loadCustomPlayerNames();
     const select = document.getElementById('menu-player-count') as HTMLSelectElement;
     const numPlayers = parseInt(select.value, 10);
     const isTeamMode = selectedGameMode === 'team';
@@ -268,7 +307,6 @@ function setupMenuControls() {
     gameState = newGame(numPlayers, isTeamMode);
     validTokenIds = [];
 
-    // Connect to Supabase Room Channel
     joinRoom(roomCode, (remoteState) => {
       handleRemoteStateUpdate(remoteState);
     });
@@ -277,6 +315,7 @@ function setupMenuControls() {
 
     updateRoomDisplay(`Room: ${roomCode} ${isTeamMode ? '(2v2 Teams)' : ''}`);
     markGameActive();
+    applyPersistentCamera();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -284,6 +323,7 @@ function setupMenuControls() {
   // Join Room Button
   document.getElementById('btn-submit-join-room')?.addEventListener('click', () => {
     sounds.playClick();
+    loadCustomPlayerNames();
     const input = document.getElementById('menu-join-code-input') as HTMLInputElement;
     const code = input.value.trim().toUpperCase();
 
@@ -299,6 +339,7 @@ function setupMenuControls() {
 
     updateRoomDisplay(`Room: ${roomCode}`);
     markGameActive();
+    applyPersistentCamera();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -306,6 +347,7 @@ function setupMenuControls() {
   // Start Local Game Button
   document.getElementById('btn-start-local-game')?.addEventListener('click', () => {
     sounds.playClick();
+    loadCustomPlayerNames();
     roomCode = null;
     const isTeamMode = selectedGameMode === 'team';
     gameState = newGame(4, isTeamMode);
@@ -313,6 +355,7 @@ function setupMenuControls() {
 
     updateRoomDisplay(isTeamMode ? "Local Match (2v2 Teams)" : "Local Match");
     markGameActive();
+    applyPersistentCamera();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -320,6 +363,7 @@ function setupMenuControls() {
   // Start Computer Game Button
   document.getElementById('btn-start-computer-game')?.addEventListener('click', () => {
     sounds.playClick();
+    loadCustomPlayerNames();
     roomCode = null;
     const isTeamMode = selectedGameMode === 'team';
     const select = document.getElementById('menu-computer-config') as HTMLSelectElement;
@@ -333,6 +377,7 @@ function setupMenuControls() {
     const modeLabel = isTeamMode ? "vs Computer (2v2 Team)" : "vs Computer";
     updateRoomDisplay(modeLabel);
     markGameActive();
+    applyPersistentCamera();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -385,8 +430,8 @@ function updateRoomDisplay(label: string) {
 
 function handleRollDice() {
   resetIdleTimer();
-  if (gameState.is_game_over) return;
-  if (engine && engine.isDiceRolling) return;
+  if (!gameState || gameState.is_game_over) return;
+  if (engine && (engine.isDiceRolling || engine.isAnimating)) return;
   if (gameState.dice_roll > 0 && validTokenIds.length > 0) return; // Strict lock: must move piece first!
 
   sounds.playClick();
@@ -538,7 +583,7 @@ function teleportSelectedTokenToBase(tokenId: number | null = getTargetDebugToke
 }
 
 function forceSetDiceRoll(val: number) {
-  if (!isDebugModeEnabled || gameState.winner !== null) return;
+  if (!isDebugModeEnabled || gameState.is_game_over || gameState.winner !== null) return;
 
   gameState.dice_roll = val;
   validTokenIds = getValidMoveTokenIds(gameState);
@@ -552,7 +597,7 @@ function forceSetDiceRoll(val: number) {
 }
 
 function setupInstantHitCheat() {
-  if (!isDebugModeEnabled) return;
+  if (!isDebugModeEnabled || gameState.is_game_over) return;
 
   const currentTurn = gameState.current_turn;
   const startTrackMap = [0, 13, 26, 39];
@@ -606,7 +651,7 @@ function setupInstantHitCheat() {
 }
 
 function setTurnTo(turnIdx: number) {
-  if (!isDebugModeEnabled) return;
+  if (!isDebugModeEnabled || gameState.is_game_over) return;
   const turnNames = ['Red', 'Green', 'Yellow', 'Blue'];
 
   gameState.current_turn = turnIdx % gameState.num_players;
@@ -621,13 +666,15 @@ function setTurnTo(turnIdx: number) {
 }
 
 function skipTurn() {
-  if (!isDebugModeEnabled) return;
+  if (!isDebugModeEnabled || gameState.is_game_over) return;
   const nextTurn = (gameState.current_turn + 1) % gameState.num_players;
   setTurnTo(nextTurn);
 }
 
 function handlePawnClick(tokenId: number, stackTokenIds: number[] = [tokenId]) {
   resetIdleTimer();
+  if (!gameState || gameState.is_game_over) return;
+  if (engine && engine.isAnimating) return;
 
   // If any token in the clicked stack belongs to validTokenIds for the active turn, prioritize moving that token!
   let targetTokenId = tokenId;
@@ -636,14 +683,21 @@ function handlePawnClick(tokenId: number, stackTokenIds: number[] = [tokenId]) {
     targetTokenId = validInStack;
   }
 
-  if (gameState.dice_roll > 0 && gameState.winner === null && validTokenIds.includes(targetTokenId)) {
-    const oldTokens = gameState.tokens.map(t => ({ color_idx: Math.floor(t.id / 4), position: t.position }));
+  if (gameState.dice_roll > 0 && validTokenIds.includes(targetTokenId)) {
+    const oldTokens = gameState.tokens.map(t => ({ id: t.id, color_idx: Math.floor(t.id / 4), position: t.position }));
     const hitterColorIdx = gameState.current_turn;
 
     gameState = applyMoveToken(gameState, targetTokenId);
     validTokenIds = [];
     selectedDebugTokenId = null;
     engine.selectedDebugTokenId = null;
+
+    // Detect if piece reached position 999 (goal destination)
+    const movedToken = gameState.tokens.find(t => t.id === targetTokenId);
+    const oldMovedToken = oldTokens.find(t => t.id === targetTokenId);
+    if (movedToken && oldMovedToken && oldMovedToken.position !== 999 && movedToken.position === 999) {
+      engine.triggerGoalReachedAnimation(Math.floor(targetTokenId / 4));
+    }
 
     // Detect if a piece was captured and sent back to base (-1)
     let victimColorIdx: number | null = null;
@@ -662,7 +716,7 @@ function handlePawnClick(tokenId: number, stackTokenIds: number[] = [tokenId]) {
       sounds.playCapture();
     }
 
-    if (gameState.winner !== null) {
+    if (gameState.is_game_over) {
       sounds.playWinFanfare();
     }
 
@@ -682,7 +736,7 @@ function updateUI() {
   engine.updateState(gameState, validTokenIds);
 
   const currentTurnInfo = getPlayerColorInfo(gameState, gameState.current_turn);
-  const currentTurnColor = currentTurnInfo.name;
+  const currentTurnName = currentTurnInfo.name;
   const currentTurnHex = currentTurnInfo.hex;
 
   // Turn Badge
@@ -691,10 +745,10 @@ function updateUI() {
   const botLabel = isBot ? " (🤖 Bot)" : "";
 
   if (gameState.is_team_mode) {
-    const teamLabel = gameState.current_turn % 2 === 0 ? "Team A (Red & Yellow)" : "Team B (Green & Blue)";
-    turnBadge.textContent = `${currentTurnColor}${botLabel}'s Turn [${teamLabel}]`;
+    const teamLabel = gameState.current_turn % 2 === 0 ? "Team A" : "Team B";
+    turnBadge.textContent = `${currentTurnName}${botLabel}'s Turn [${teamLabel}]`;
   } else {
-    turnBadge.textContent = `${currentTurnColor}${botLabel}'s Turn`;
+    turnBadge.textContent = `${currentTurnName}${botLabel}'s Turn`;
   }
   turnBadge.style.backgroundColor = `${currentTurnHex}22`;
   turnBadge.style.color = currentTurnHex;
@@ -708,17 +762,20 @@ function updateUI() {
   const actionLogEl = document.getElementById('action-log')!;
   actionLogEl.textContent = `${gameState.last_action}`;
 
-  // Roll Button State (Strictly lock button when dice is rolling, when valid moves exist, or when match is complete)
+  // Roll Button State (Strictly lock button when opponent turn, when dice is rolling/animating, when valid moves exist, or when match is complete)
   const btnRoll = document.getElementById('btn-roll') as HTMLButtonElement;
-  const isRollLocked = (engine && engine.isDiceRolling) || (gameState.dice_roll > 0 && validTokenIds.length > 0) || !!gameState.is_game_over;
+  const isOpponentTurn = isBot || (roomCode !== null && gameState.current_turn !== engine.myPlayerColor);
+  const isAnimating = engine && (engine.isDiceRolling || engine.isAnimating);
+  const isRollLocked = isAnimating || isOpponentTurn || (gameState.dice_roll > 0 && validTokenIds.length > 0) || !!gameState.is_game_over;
+
   if (btnRoll) {
     btnRoll.disabled = isRollLocked;
     if (isRollLocked) {
-      btnRoll.classList.add('opacity-50');
-      btnRoll.classList.add('cursor-not-allowed');
+      btnRoll.style.opacity = '0.4';
+      btnRoll.style.cursor = 'not-allowed';
     } else {
-      btnRoll.classList.remove('opacity-50');
-      btnRoll.classList.remove('cursor-not-allowed');
+      btnRoll.style.opacity = '1.0';
+      btnRoll.style.cursor = 'pointer';
     }
   }
 
@@ -762,14 +819,15 @@ function updateUI() {
   }
 
   // Auto-schedule turn pass if active player has rolled dice but has NO valid moves possible
-  scheduleAutoPassIfNeeded();
-
-  // Auto-schedule Computer AI Turn execution if active player is a bot
-  scheduleAITurnIfNeeded();
+  if (!gameState.is_game_over) {
+    scheduleAutoPassIfNeeded();
+    scheduleAITurnIfNeeded();
+  }
 }
 
 function restartCurrentGame() {
   sounds.playClick();
+  loadCustomPlayerNames();
   const winnerModal = document.getElementById('winner-modal');
   if (winnerModal) winnerModal.style.display = 'none';
 
@@ -793,6 +851,7 @@ function restartCurrentGame() {
     broadcastGameState(gameState);
   }
 
+  applyPersistentCamera();
   updateUI();
 }
 
@@ -803,7 +862,6 @@ function renderWinnerLeaderboard() {
   listEl.innerHTML = '';
 
   const rankMedals = ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place', '🏅 4th Place'];
-  const rankBadges = ['👑 Champion', 'Runner Up', '3rd Place', '4th Place'];
 
   // Determine ranking order of players
   let rankedPlayerIndices: number[] = [];
@@ -823,27 +881,29 @@ function renderWinnerLeaderboard() {
   rankedPlayerIndices.forEach((pIdx, position) => {
     const colorInfo = getPlayerColorInfo(gameState, pIdx);
     const isBot = gameState.player_types && gameState.player_types[pIdx] === 1;
-    const botTag = isBot ? " (🤖 Bot)" : " (👤 Human)";
+    const botTag = isBot ? " (🤖 Bot)" : "";
 
     const item = document.createElement('div');
     item.style.cssText = `
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.75rem 1rem;
+      padding: 0.5rem 0.75rem;
       background: rgba(15, 23, 42, 0.85);
       border: 1.5px solid ${colorInfo.hex};
-      border-radius: 0.85rem;
+      border-radius: 0.75rem;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      gap: 0.5rem;
+      flex-wrap: wrap;
     `;
 
     item.innerHTML = `
-      <div style="display:flex; align-items:center; gap:0.75rem;">
-        <span style="font-weight:900; font-size:1.15rem; color:#f8fafc;">${rankMedals[position] || `🏅 ${position + 1}th Place`}</span>
-        <span style="font-weight:800; color:${colorInfo.hex}; font-size:1rem;">${colorInfo.name}${botTag}</span>
+      <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:130px;">
+        <span style="font-weight:900; font-size:0.9rem; color:#f8fafc;">${rankMedals[position] || `🏅 ${position + 1}th`}</span>
+        <span style="font-weight:800; color:${colorInfo.hex}; font-size:0.85rem; word-break:break-word;">${colorInfo.name}${botTag}</span>
       </div>
-      <span style="font-weight:800; font-size:0.85rem; padding:0.25rem 0.6rem; border-radius:0.5rem; background:${colorInfo.hex}22; color:${colorInfo.hex}; border:1px solid ${colorInfo.hex};">
-        ${rankBadges[position] || `${position + 1}th Place`}
+      <span style="font-weight:800; font-size:0.75rem; padding:0.2rem 0.5rem; border-radius:0.4rem; background:${colorInfo.hex}22; color:${colorInfo.hex}; border:1px solid ${colorInfo.hex}; white-space:nowrap;">
+        ${position === 0 ? '👑 Champion' : `${position + 1}th Place`}
       </span>
     `;
 
@@ -861,9 +921,16 @@ function scheduleAutoPassIfNeeded() {
     autoPassTimeout = setTimeout(() => {
       autoPassTimeout = null;
       if (gameState && gameState.dice_roll > 0 && getValidMoveTokenIds(gameState).length === 0 && !gameState.is_game_over) {
-        handleRollDice();
+        // Auto pass round: advance turn without rolling dice for next player!
+        const nextTurn = (gameState.current_turn + 1) % gameState.num_players;
+        gameState.current_turn = nextTurn;
+        gameState.dice_roll = 0;
+        validTokenIds = [];
+        const nextInfo = getPlayerColorInfo(gameState, gameState.current_turn);
+        gameState.last_action = `[NO MOVES] Turn passed to ${nextInfo.name}`;
+        updateUI();
       }
-    }, 900);
+    }, 800);
   } else {
     if (autoPassTimeout) {
       clearTimeout(autoPassTimeout);

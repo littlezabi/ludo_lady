@@ -700,7 +700,8 @@ export class Ludo3DEngine {
 
     if (this.cameraViewMode === 'top') {
       const aspect = this.container.clientWidth / this.container.clientHeight;
-      const topY = aspect < 1.0 ? Math.min(48, Math.max(22, 22 / aspect)) : 22;
+      const base_value = 19;
+      let topY = aspect < 1.0 ? Math.min(48, Math.max(base_value, base_value / aspect)) : base_value;
       targetPos.set(0, topY, 0.001);
       this.camera.up.set(0, 0, -1);
     } else if (this.cameraViewMode === 'home' || this.cameraViewMode === 'active_turn') {
@@ -1175,12 +1176,56 @@ export class Ludo3DEngine {
     });
   }
 
+  public get isAnimating(): boolean {
+    if (this.isDiceRolling || this.isTransitioningCamera || this.capturedRewindTokens.size > 0) return true;
+    for (const waypoints of this.pawnWaypoints.values()) {
+      if (waypoints && waypoints.length > 0) return true;
+    }
+    return false;
+  }
+
+  public triggerGoalReachedAnimation(colorIdx: number): void {
+    sounds.playGoalReached();
+
+    const overlayContainer = document.getElementById('emoji-overlay-container');
+    if (!overlayContainer) return;
+
+    const vector = new THREE.Vector3(0, 1.2, 0);
+    vector.project(this.camera);
+
+    const canvas = this.renderer.domElement;
+    const widthHalf = canvas.clientWidth / 2;
+    const heightHalf = canvas.clientHeight / 2;
+
+    const screenX = (vector.x * widthHalf) + widthHalf;
+    const screenY = -(vector.y * heightHalf) + heightHalf;
+
+    const bubble = document.createElement('div');
+    bubble.className = `capture-emoji-bubble hitter`;
+    bubble.style.left = `${screenX}px`;
+    bubble.style.top = `${screenY}px`;
+
+    bubble.innerHTML = `
+      <div class="emoji-icon">🌟 🏆 🌟</div>
+      <div class="emoji-label" style="background:linear-gradient(135deg, #eab308, #f59e0b); color:#0f172a; border-color:#ffffff;">
+        GOAL REACHED!
+      </div>
+    `;
+
+    overlayContainer.appendChild(bubble);
+
+    setTimeout(() => {
+      bubble.remove();
+    }, 2200);
+  }
+
   private updateCameraAspect(): void {
     const aspect = this.container.clientWidth / this.container.clientHeight;
     this.camera.aspect = aspect;
 
     if (this.cameraViewMode === 'top') {
-      const topY = aspect < 1.0 ? Math.min(48, Math.max(22, 22 / aspect)) : 22;
+      const base_value = 19;
+      const topY = aspect < 1.0 ? Math.min(48, Math.max(base_value, base_value / aspect)) : base_value;
       this.targetCameraPos.set(0, topY, 0.001);
       if (!this.isTransitioningCamera) {
         this.camera.position.set(0, topY, 0.001);

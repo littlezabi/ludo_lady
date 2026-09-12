@@ -276,22 +276,25 @@ impl GameState {
                 "👑 {} HAS FINISHED IN {} PLACE! Match continues for remaining players...",
                 turn_colors[target_p_idx as usize], r_name
             );
+        }
 
-            // Check if match is fully complete (all players finished, or only 1 active remaining)
-            let active_remaining = (0..self.num_players)
-                .filter(|&p| !self.is_player_finished(p))
-                .count();
+        // Check if match is fully complete (only 1 or 0 active players remaining)
+        let active_remaining = (0..self.num_players)
+            .filter(|&p| !self.is_player_finished(p))
+            .count();
 
-            if active_remaining <= 1 {
-                self.is_game_over = true;
-                self.dice_roll = 0;
+        if active_remaining <= 1 {
+            self.is_game_over = true;
+            self.dice_roll = 0;
+            if !self.winners_rank.is_empty() {
+                let turn_colors = ["Red", "Green", "Yellow", "Blue"];
                 let champ_idx = self.winners_rank[0] as usize;
                 self.last_action = format!(
                     "🎉 MATCH COMPLETE! {} is the 👑 Champion!",
                     turn_colors[champ_idx]
                 );
-                return true;
             }
+            return true;
         }
 
         // Reset dice roll for next action
@@ -308,6 +311,16 @@ impl GameState {
 
     fn next_turn(&mut self) {
         self.dice_roll = 0;
+
+        let active_remaining = (0..self.num_players)
+            .filter(|&p| !self.is_player_finished(p))
+            .count();
+
+        if active_remaining <= 1 {
+            self.is_game_over = true;
+            return;
+        }
+
         if self.is_game_over {
             return;
         }
