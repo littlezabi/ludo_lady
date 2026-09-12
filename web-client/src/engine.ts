@@ -228,23 +228,14 @@ export class Ludo3DEngine {
 
   public selectedDebugTokenId: number | null = null;
 
-  private getStackOffset(subIdx: number, count: number): { x: number; z: number } {
-    const d = 0.24;
-    if (count === 2) {
-      return subIdx === 0 ? { x: -d, z: -d } : { x: d, z: d };
-    }
-    if (count === 3) {
-      if (subIdx === 0) return { x: -d, z: -d };
-      if (subIdx === 1) return { x: d, z: -d };
-      return { x: 0, z: d };
-    }
-    const offsets = [
-      { x: -d, z: -d },
-      { x: d, z: -d },
-      { x: -d, z: d },
-      { x: d, z: d }
-    ];
-    return offsets[subIdx % 4];
+  private getStackOffset(subIdx: number, count: number): { x: number; y: number; z: number } {
+    if (count <= 1) return { x: 0, y: 0, z: 0 };
+    // Vertical stacking on top of each other with slight 3D diagonal stagger for visual clarity
+    return {
+      x: subIdx * 0.06,
+      y: subIdx * 0.45,
+      z: -subIdx * 0.06
+    };
   }
 
   public updateState(state: GameState, validTokenIds: number[]): void {
@@ -255,7 +246,7 @@ export class Ludo3DEngine {
       Blue: 0x3b82f6
     };
 
-    // Group active tokens on the board (pos != -1 and pos != 999) by position to compute stacking offsets
+    // Group active tokens on the board (pos != -1 and pos != 999) by position to compute vertical stacking
     const positionGroups: Map<number, number[]> = new Map();
     state.tokens.forEach(t => {
       if (t.position !== -1 && t.position !== 999) {
@@ -296,14 +287,14 @@ export class Ludo3DEngine {
       const colorIdx = Math.floor(state.tokens.indexOf(token) / 4);
       let p3d = getTile3DPosition(token.position, token.id, colorIdx);
 
-      // Apply sub-tile offset if multiple pawns share the same board block
+      // Apply 3D Vertical Stacking Offset if multiple pawns share the same board block
       const group = positionGroups.get(token.position);
       if (group && group.length > 1) {
         const subIdx = group.indexOf(token.id);
         const offset = this.getStackOffset(subIdx, group.length);
         p3d = {
           x: p3d.x + offset.x,
-          y: p3d.y,
+          y: p3d.y + offset.y,
           z: p3d.z + offset.z
         };
       }
@@ -319,7 +310,7 @@ export class Ludo3DEngine {
           if (idx === pathPoints.length - 1 && group && group.length > 1) {
             const subIdx = group.indexOf(token.id);
             const offset = this.getStackOffset(subIdx, group.length);
-            return new THREE.Vector3(p.x + offset.x, p.y, p.z + offset.z);
+            return new THREE.Vector3(p.x + offset.x, p.y + offset.y, p.z + offset.z);
           }
           return new THREE.Vector3(p.x, p.y, p.z);
         });
