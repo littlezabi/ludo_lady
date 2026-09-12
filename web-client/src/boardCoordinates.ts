@@ -9,7 +9,7 @@ export interface Point3D {
 // 15x15 Ludo Board Grid Cell Size (Board width = 14.8 units)
 const CELL_SIZE = 14.8 / 15.0; // 0.986667
 
-function cellTo3D(col: number, row: number, yPos = 0.65): Point3D {
+function cellTo3D(col: number, row: number, yPos = 0.26): Point3D {
   return {
     x: -7.4 + (col + 0.5) * CELL_SIZE,
     y: yPos,
@@ -18,7 +18,7 @@ function cellTo3D(col: number, row: number, yPos = 0.65): Point3D {
 }
 
 export function getTile3DPosition(positionCode: number, tokenId: number, colorIdx: number): Point3D {
-  const yPos = 0.65;
+  const yPos = 0.26;
 
   // 1. Home Base Positions (-1) - Preserving exact user coordinates
   if (positionCode === -1) {
@@ -57,7 +57,7 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
     ];
     const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
     const co = centerOffsets[safeColorIdx] || centerOffsets[0];
-    return { x: co.x, y: yPos + 0.3, z: co.z };
+    return { x: co.x, y: yPos + 0.05, z: co.z };
   }
 
   // 3. Home Stretch Positions (100..105, 200..205, 300..305, 400..405)

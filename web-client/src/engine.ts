@@ -406,7 +406,7 @@ export class Ludo3DEngine {
       const targetPos = this.pawnTargetPositions.get(id);
       if (targetPos) {
         const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.set(targetPos.x, 0.35, targetPos.z);
+        ring.position.set(targetPos.x, 0.27, targetPos.z);
         this.scene.add(ring);
         this.highlightRings.push(ring);
       }
@@ -423,7 +423,7 @@ export class Ludo3DEngine {
           opacity: 0.95
         });
         const debugRing = new THREE.Mesh(ringGeo, debugRingMat);
-        debugRing.position.set(selectedMesh.position.x, 0.36, selectedMesh.position.z);
+        debugRing.position.set(selectedMesh.position.x, selectedMesh.position.y + 0.01, selectedMesh.position.z);
         this.scene.add(debugRing);
         this.highlightRings.push(debugRing);
       }
