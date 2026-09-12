@@ -175,7 +175,7 @@ impl GameState {
                     let target_pos = new_track_pos;
                     let mut captured = false;
 
-                    // Count friendly tokens (same color or teammate color in 2v2 mode) at target_pos
+                    // Attacker team friendly count at target_pos (including newly moved token)
                     let friendly_count = self.tokens.iter().filter(|t| {
                         is_teammate(t.color, color)
                             && t.position == target_pos
@@ -183,38 +183,67 @@ impl GameState {
                             && !t.is_finished()
                     }).count();
 
-                    // Check opponent colors present at target_pos: capture only if friendly_count >= opp_count
-                    let mut captured_colors = Vec::new();
-                    for opp_color in [PlayerColor::Red, PlayerColor::Green, PlayerColor::Yellow, PlayerColor::Blue] {
-                        if is_teammate(opp_color, color) {
-                            continue;
-                        }
-                        let opp_count = self.tokens.iter().filter(|t| {
-                            t.color == opp_color
+                    if self.is_team_mode {
+                        // In 2v2 Team Mode: Calculate total opponent team stack size at target_pos
+                        let opp_team_count = self.tokens.iter().filter(|t| {
+                            !is_teammate(t.color, color)
                                 && t.position == target_pos
                                 && !t.is_at_base()
                                 && !t.is_finished()
                         }).count();
 
-                        if opp_count > 0 && friendly_count >= opp_count {
-                            captured_colors.push(opp_color);
+                        // Attacker team can ONLY capture opponent team stack if friendly_count >= opp_team_count
+                        if opp_team_count > 0 && friendly_count >= opp_team_count {
+                            for other_token in &mut self.tokens {
+                                if !is_teammate(other_token.color, color)
+                                    && other_token.position == target_pos
+                                    && !other_token.is_at_base()
+                                    && !other_token.is_finished()
+                                {
+                                    other_token.position = -1;
+                                    other_token.steps_taken = 0;
+                                    captured = true;
+                                    self.last_action = format!(
+                                        "Player {} captured Opponent Team's stack!",
+                                        current_player
+                                    );
+                                }
+                            }
                         }
-                    }
+                    } else {
+                        // In Classic Solo Mode: Calculate per opponent color stack size at target_pos
+                        let mut captured_colors = Vec::new();
+                        for opp_color in [PlayerColor::Red, PlayerColor::Green, PlayerColor::Yellow, PlayerColor::Blue] {
+                            if opp_color == color {
+                                continue;
+                            }
+                            let opp_count = self.tokens.iter().filter(|t| {
+                                t.color == opp_color
+                                    && t.position == target_pos
+                                    && !t.is_at_base()
+                                    && !t.is_finished()
+                            }).count();
 
-                    if !captured_colors.is_empty() {
-                        for other_token in &mut self.tokens {
-                            if captured_colors.contains(&other_token.color)
-                                && other_token.position == target_pos
-                                && !other_token.is_at_base()
-                                && !other_token.is_finished()
-                            {
-                                other_token.position = -1;
-                                other_token.steps_taken = 0;
-                                captured = true;
-                                self.last_action = format!(
-                                    "Player {} captured Player {:?}'s stack!",
-                                    current_player, other_token.color
-                                );
+                            if opp_count > 0 && friendly_count >= opp_count {
+                                captured_colors.push(opp_color);
+                            }
+                        }
+
+                        if !captured_colors.is_empty() {
+                            for other_token in &mut self.tokens {
+                                if captured_colors.contains(&other_token.color)
+                                    && other_token.position == target_pos
+                                    && !other_token.is_at_base()
+                                    && !other_token.is_finished()
+                                {
+                                    other_token.position = -1;
+                                    other_token.steps_taken = 0;
+                                    captured = true;
+                                    self.last_action = format!(
+                                        "Player {} captured Player {:?}'s stack!",
+                                        current_player, other_token.color
+                                    );
+                                }
                             }
                         }
                     }
@@ -238,7 +267,7 @@ impl GameState {
                     let team1_count = remaining_opponents.iter().filter(|&&c| (c as u8 % 2) == 1).count();
 
                     if team0_count > 0 && team1_count > 0 {
-                        let moving_team = (color as u8 % 2);
+                        let moving_team = color as u8 % 2;
                         let winner_team = if moving_team == 0 { 1 } else { 0 };
 
                         for t in &mut self.tokens {
