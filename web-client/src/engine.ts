@@ -565,12 +565,21 @@ export class Ludo3DEngine {
       const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
       const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
 
-      // Calculate outward radial offset on board floor (y = 0.28) right outside the tile block
-      const normX = Math.abs(p3d.x) < 0.1 ? 0 : (p3d.x > 0 ? 1 : -1);
-      const normZ = Math.abs(p3d.z) < 0.1 ? 0 : (p3d.z > 0 ? 1 : -1);
+      // Calculate small outward radial offset on the SAME tile block (cell half-width is ~0.49)
+      // Offset of 0.28 units keeps badge strictly on the same tile block right next to the pawns
+      let dx = 0;
+      let dz = 0;
+      const len = Math.hypot(p3d.x, p3d.z);
+      if (len > 0.1) {
+        dx = (p3d.x / len) * 0.28;
+        dz = (p3d.z / len) * 0.28;
+      } else {
+        dx = 0.28;
+        dz = 0.28;
+      }
 
-      const labelX = p3d.x + (normX !== 0 ? normX * 0.85 : 0.85);
-      const labelZ = p3d.z + (normZ !== 0 ? normZ * 0.85 : 0);
+      const labelX = p3d.x + dx;
+      const labelZ = p3d.z + dz;
       const boardFloorY = 0.28;
 
       const worldVec = new THREE.Vector3(labelX, boardFloorY, labelZ);
