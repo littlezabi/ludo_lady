@@ -140,3 +140,35 @@ export function getStepByStepPath(
 
   return path;
 }
+
+export function getReverseStepByStepPath(
+  colorIdx: number,
+  prevSteps: number,
+  tokenId: number
+): Point3D[] {
+  const path: Point3D[] = [];
+  const startTrackMap = [0, 13, 26, 39];
+  const stretchBaseMap = [100, 200, 300, 400];
+
+  const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
+  const startTrack = startTrackMap[safeColorIdx];
+  const stretchBase = stretchBaseMap[safeColorIdx];
+
+  const startStep = Math.min(56, Math.max(1, prevSteps));
+
+  // Rewind step-by-step backwards along track from startStep - 1 down to 1
+  for (let s = startStep - 1; s >= 1; s--) {
+    let posCode = -1;
+    if (s <= 51) {
+      posCode = (startTrack + s - 1) % 52;
+    } else if (s >= 52 && s <= 56) {
+      posCode = stretchBase + (s - 51);
+    }
+    path.push(getTile3DPosition(posCode, tokenId, safeColorIdx));
+  }
+
+  // Final destination: Home Base slot (-1)
+  path.push(getTile3DPosition(-1, tokenId, safeColorIdx));
+
+  return path;
+}
