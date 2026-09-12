@@ -227,14 +227,51 @@ export class Ludo3DEngine {
   }
 
   public selectedDebugTokenId: number | null = null;
+  private sharedPawnGeometry: THREE.BufferGeometry | null = null;
+
+  private createHollowPawnGeometry(): THREE.BufferGeometry {
+    if (this.sharedPawnGeometry) return this.sharedPawnGeometry;
+
+    const points: THREE.Vector2[] = [];
+
+    // 1. Inner Hollow Cavity (Ceiling down to Bottom Rim)
+    points.push(new THREE.Vector2(0.00, 0.58)); // Cavity ceiling
+    points.push(new THREE.Vector2(0.20, 0.52)); // Upper cavity wall
+    points.push(new THREE.Vector2(0.30, 0.24)); // Mid cavity wall
+    points.push(new THREE.Vector2(0.36, 0.08)); // Lower cavity wall
+    points.push(new THREE.Vector2(0.40, 0.00)); // Inner bottom rim
+
+    // 2. Outer Base & Exposed Color Ring
+    points.push(new THREE.Vector2(0.48, 0.00)); // Outer bottom corner
+    points.push(new THREE.Vector2(0.48, 0.06)); // Base vertical lip
+    points.push(new THREE.Vector2(0.44, 0.12)); // Base bevel
+    points.push(new THREE.Vector2(0.42, 0.18)); // Exposed color ring
+    points.push(new THREE.Vector2(0.35, 0.22)); // Nesting shoulder step (stopping ledge)
+
+    // 3. Tapered Body & Collar Ring
+    points.push(new THREE.Vector2(0.30, 0.35)); // Waist
+    points.push(new THREE.Vector2(0.35, 0.44)); // Upper collar
+    points.push(new THREE.Vector2(0.22, 0.56)); // Neck
+
+    // 4. Spherical Head
+    points.push(new THREE.Vector2(0.28, 0.68));
+    points.push(new THREE.Vector2(0.30, 0.76)); // Head equator
+    points.push(new THREE.Vector2(0.20, 0.86));
+    points.push(new THREE.Vector2(0.00, 0.88)); // Head top
+
+    const latheGeo = new THREE.LatheGeometry(points, 32);
+    latheGeo.computeVertexNormals();
+    this.sharedPawnGeometry = latheGeo;
+    return latheGeo;
+  }
 
   private getStackOffset(subIdx: number, count: number): { x: number; y: number; z: number } {
     if (count <= 1) return { x: 0, y: 0, z: 0 };
-    // Vertical stacking on top of each other with slight 3D diagonal stagger for visual clarity
+    // Nesting stack offset: each pawn sits on the stopping ledge (y = 0.24) with a micro 3D stagger
     return {
-      x: subIdx * 0.06,
-      y: subIdx * 0.45,
-      z: -subIdx * 0.06
+      x: subIdx * 0.04,
+      y: subIdx * 0.24,
+      z: -subIdx * 0.04
     };
   }
 
@@ -260,24 +297,19 @@ export class Ludo3DEngine {
       let mesh = this.pawnMeshes.get(token.id);
 
       if (!mesh) {
-        // Create Pawn Mesh
-        const pawnGeo = new THREE.CylinderGeometry(0.32, 0.45, 1.0, 24);
+        // Create Premium Game-Ready Hollow Stackable Pawn Mesh
+        const pawnGeo = this.createHollowPawnGeometry();
         const pawnMat = new THREE.MeshStandardMaterial({
           color: colorHexMap[token.color] || 0xffffff,
-          roughness: 0.65,
-          metalness: 0.0
+          roughness: 0.35,
+          metalness: 0.0,
+          side: THREE.DoubleSide
         });
 
         mesh = new THREE.Mesh(pawnGeo, pawnMat);
         mesh.castShadow = true;
+        mesh.receiveShadow = true;
         mesh.userData = { tokenId: token.id };
-
-        // Top Cap Spherical Head
-        const headGeo = new THREE.SphereGeometry(0.3, 16, 16);
-        const headMesh = new THREE.Mesh(headGeo, pawnMat);
-        headMesh.position.y = 0.55;
-        headMesh.castShadow = true;
-        mesh.add(headMesh);
 
         this.scene.add(mesh);
         this.pawnMeshes.set(token.id, mesh);
