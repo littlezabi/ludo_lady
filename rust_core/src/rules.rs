@@ -151,19 +151,47 @@ impl GameState {
                     let target_pos = new_track_pos;
                     let mut captured = false;
 
-                    for other_token in &mut self.tokens {
-                        if other_token.color != color
-                            && other_token.position == target_pos
-                            && !other_token.is_at_base()
-                            && !other_token.is_finished()
-                        {
-                            other_token.position = -1;
-                            other_token.steps_taken = 0;
-                            captured = true;
-                            self.last_action = format!(
-                                "Player {} captured Player {:?}'s token!",
-                                current_player, other_token.color
-                            );
+                    // Count how many tokens of current player's color are at target_pos (including this newly moved token)
+                    let attacker_count = self.tokens.iter().filter(|t| {
+                        t.color == color
+                            && t.position == target_pos
+                            && !t.is_at_base()
+                            && !t.is_finished()
+                    }).count();
+
+                    // Check opponent colors present at target_pos: capture only if attacker_count >= opp_count
+                    let mut captured_colors = Vec::new();
+                    for opp_color in [PlayerColor::Red, PlayerColor::Green, PlayerColor::Yellow, PlayerColor::Blue] {
+                        if opp_color == color {
+                            continue;
+                        }
+                        let opp_count = self.tokens.iter().filter(|t| {
+                            t.color == opp_color
+                                && t.position == target_pos
+                                && !t.is_at_base()
+                                && !t.is_finished()
+                        }).count();
+
+                        if opp_count > 0 && attacker_count >= opp_count {
+                            captured_colors.push(opp_color);
+                        }
+                    }
+
+                    if !captured_colors.is_empty() {
+                        for other_token in &mut self.tokens {
+                            if captured_colors.contains(&other_token.color)
+                                && other_token.position == target_pos
+                                && !other_token.is_at_base()
+                                && !other_token.is_finished()
+                            {
+                                other_token.position = -1;
+                                other_token.steps_taken = 0;
+                                captured = true;
+                                self.last_action = format!(
+                                    "Player {} captured Player {:?}'s stack!",
+                                    current_player, other_token.color
+                                );
+                            }
                         }
                     }
 
