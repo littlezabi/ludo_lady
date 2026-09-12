@@ -388,6 +388,9 @@ export class Ludo3DEngine {
           return new THREE.Vector3(p.x, p.y, p.z);
         });
         this.pawnWaypoints.set(token.id, waypointsVec);
+      } else if (prevSteps === -1 && token.steps_taken === 0) {
+        sounds.playPieceEntry();
+        this.pawnTargetPositions.set(token.id, targetVec);
       } else {
         this.pawnTargetPositions.set(token.id, targetVec);
       }
