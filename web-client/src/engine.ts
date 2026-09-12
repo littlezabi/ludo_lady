@@ -20,6 +20,8 @@ export class Ludo3DEngine {
   private pawnWaypoints: Map<number, THREE.Vector3[]> = new Map();
   private tokenPreviousSteps: Map<number, number> = new Map();
   private tokenPreviousPositions: Map<number, number> = new Map();
+  private stackArrivalOrder: Map<number, number[]> = new Map();
+  private currentPositionGroups: Map<number, number[]> = new Map();
   private capturedRewindTokens: Set<number> = new Set();
   private highlightRings: THREE.Mesh[] = [];
   private diceMesh!: THREE.Mesh;
@@ -366,9 +368,6 @@ export class Ludo3DEngine {
     };
   }
 
-  private stackArrivalOrder: Map<number, number[]> = new Map();
-  private currentPositionGroups: Map<number, number[]> = new Map();
-
   public updateState(state: GameState, validTokenIds: number[]): void {
     this.lastGameState = state;
 
@@ -382,32 +381,44 @@ export class Ludo3DEngine {
       Blue: 0x3b82f6
     };
 
-    // Update physical arrival sequence for every position (last-in token added to end of arrival list)
+    // 1. Group active tokens on board by position (excluding home -1 and finished 999)
+    const positionToActiveTokens = new Map<number, number[]>();
     state.tokens.forEach(t => {
       if (t.position !== -1 && t.position !== 999) {
-        const order = this.stackArrivalOrder.get(t.position) || [];
-        if (!order.includes(t.id)) {
-          order.push(t.id);
-        }
-        this.stackArrivalOrder.set(t.position, order);
+        const list = positionToActiveTokens.get(t.position) || [];
+        list.push(t.id);
+        positionToActiveTokens.set(t.position, list);
       }
     });
 
-    // Clean up stackArrivalOrder: retain only currently active tokens on board
-    this.currentPositionGroups = new Map();
-    this.stackArrivalOrder.forEach((order, pos) => {
-      const activeAtPos = state.tokens
-        .filter(t => t.position === pos && t.position !== -1 && t.position !== 999)
-        .map(t => t.id);
+    // 2. Update stackArrivalOrder for each position (preserving historical order for existing pieces, appending newly arrived pieces to VERY TOP)
+    positionToActiveTokens.forEach((activeTokenIds, pos) => {
+      const existingOrder = this.stackArrivalOrder.get(pos) || [];
 
-      const cleanedOrder = order.filter(id => activeAtPos.includes(id));
-      if (cleanedOrder.length > 0) {
-        this.stackArrivalOrder.set(pos, cleanedOrder);
-        this.currentPositionGroups.set(pos, cleanedOrder);
-      } else {
+      // Keep existing tokens that are STILL at pos and did NOT move in from another tile
+      const remainingInOrder = existingOrder.filter(id => {
+        const isStillAtPos = activeTokenIds.includes(id);
+        const prevPos = this.tokenPreviousPositions.get(id);
+        return isStillAtPos && prevPos === pos;
+      });
+
+      // Find tokens that are newly at pos (either prevPos !== pos or wasn't in existing order)
+      const newlyArrived = activeTokenIds.filter(id => !remainingInOrder.includes(id));
+
+      // New arrival order: remaining stay at bottom/middle, newly arrived placed at end (VERY TOP)
+      const newOrder = [...remainingInOrder, ...newlyArrived];
+      this.stackArrivalOrder.set(pos, newOrder);
+    });
+
+    // 3. Clean up stackArrivalOrder for positions that no longer have any active tokens
+    this.stackArrivalOrder.forEach((_, pos) => {
+      if (!positionToActiveTokens.has(pos)) {
         this.stackArrivalOrder.delete(pos);
       }
     });
+
+    // 4. Synchronize currentPositionGroups
+    this.currentPositionGroups = new Map(this.stackArrivalOrder);
 
     state.tokens.forEach((token) => {
       let mesh = this.pawnMeshes.get(token.id);
@@ -439,7 +450,7 @@ export class Ludo3DEngine {
       }
 
       // Calculate Target 3D Position
-      const colorIdx = Math.floor(state.tokens.indexOf(token) / 4);
+      const colorIdx = Math.floor(token.id / 4);
       let p3d = getTile3DPosition(token.position, token.id, colorIdx);
 
       // Apply 3D Vertical Stacking Offset: subIdx from arrival order ensures LAST-IN is on VERY TOP!
@@ -515,7 +526,6 @@ export class Ludo3DEngine {
       if (targetPos && this.lastGameState) {
         const token = this.lastGameState.tokens.find(t => t.id === id);
         if (!token) return;
-
         const colName = token.color;
         const colHex = colorHexMap[colName] || 0xef4444;
 
@@ -556,7 +566,7 @@ export class Ludo3DEngine {
         const stackCount = group ? group.length : 1;
         const topStackYOffset = (stackCount - 1) * 0.22;
 
-        const colorIdx = Math.floor(this.lastGameState.tokens.indexOf(token) / 4);
+        const colorIdx = Math.floor(token.id / 4);
         const baseTileP3D = getTile3DPosition(token.position, token.id, colorIdx);
         const floatY = baseTileP3D.y + topStackYOffset + 1.45;
 
