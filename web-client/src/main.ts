@@ -246,13 +246,11 @@ function moveSelectedTokenDebugForward(tokenId: number) {
 }
 
 function handlePawnClick(tokenId: number) {
-  // Always mark selected pawn for debugging
-  selectedDebugTokenId = tokenId;
-  engine.selectedDebugTokenId = selectedDebugTokenId;
-
   if (gameState.dice_roll > 0 && gameState.winner === null && validTokenIds.includes(tokenId)) {
     gameState = applyMoveToken(gameState, tokenId);
     validTokenIds = [];
+    selectedDebugTokenId = null;
+    engine.selectedDebugTokenId = null;
 
     // Check audio triggers
     if (gameState.last_action.includes("captured")) {
@@ -266,6 +264,9 @@ function handlePawnClick(tokenId: number) {
     if (roomCode) {
       broadcastGameState(gameState);
     }
+  } else {
+    selectedDebugTokenId = tokenId;
+    engine.selectedDebugTokenId = selectedDebugTokenId;
   }
 
   updateUI();

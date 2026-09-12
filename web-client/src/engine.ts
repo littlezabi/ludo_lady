@@ -391,6 +391,8 @@ export class Ludo3DEngine {
     this.highlightRings.forEach(ring => this.scene.remove(ring));
     this.highlightRings = [];
 
+    if (!validTokenIds || validTokenIds.length === 0) return;
+
     const colorHexMap: { [key: string]: number } = {
       Red: 0xef4444,
       Green: 0x22c55e,
@@ -427,27 +429,6 @@ export class Ludo3DEngine {
         this.highlightRings.push(triMesh);
       }
     });
-
-    // Highlight Currently Selected Debug Pawn
-    if (this.selectedDebugTokenId !== null) {
-      const selectedMesh = this.pawnMeshes.get(this.selectedDebugTokenId);
-      if (selectedMesh) {
-        const debugTriMat = new THREE.MeshStandardMaterial({
-          color: 0xf59e0b,
-          emissive: 0xf59e0b,
-          emissiveIntensity: 0.45,
-          roughness: 0.15,
-          metalness: 0.75
-        });
-        const debugTriGeo = new THREE.ConeGeometry(0.26, 0.46, 3);
-        debugTriGeo.rotateX(Math.PI);
-        const debugTri = new THREE.Mesh(debugTriGeo, debugTriMat);
-        const floatY = selectedMesh.position.y + 1.25;
-        debugTri.position.set(selectedMesh.position.x, floatY, selectedMesh.position.z);
-        this.scene.add(debugTri);
-        this.highlightRings.push(debugTri);
-      }
-    }
   }
 
   public setOnTokenClicked(callback: (tokenId: number) => void): void {
@@ -532,9 +513,17 @@ export class Ludo3DEngine {
       this.diceMesh.rotation.z += (this.diceTargetRotation.z - this.diceMesh.rotation.z) * 0.25;
     }
 
-    // Smooth Rounding / Rotation Animation of Movable Piece Triangles
+    // Smooth Rounding / Rotation Animation & Active Piece Position Tracking
     this.highlightRings.forEach(tri => {
       tri.rotation.y += 0.035;
+      const tokenId = tri.userData.id;
+      if (typeof tokenId === 'number') {
+        const mesh = this.pawnMeshes.get(tokenId);
+        if (mesh) {
+          tri.position.x = mesh.position.x;
+          tri.position.z = mesh.position.z;
+        }
+      }
     });
 
     // Update Floating Multi-Piece Stack Color Arrow Badges
