@@ -2,9 +2,26 @@ class SoundManager {
   private ctx: AudioContext | null = null;
   public muted: boolean = false;
   public volume: number = 1.0;
+  private snoreAudio: HTMLAudioElement | null = null;
+
+  public setMuted(muted: boolean) {
+    this.muted = muted;
+    if (this.muted) {
+      this.stopSnoreLoop();
+    }
+  }
+
+  public setVolume(volumeFraction: number) {
+    this.volume = Math.max(0, Math.min(1, volumeFraction));
+    if (this.volume <= 0 || this.muted) {
+      this.stopSnoreLoop();
+    } else if (this.snoreAudio) {
+      this.snoreAudio.volume = Math.max(0, Math.min(1, this.volume * 0.85));
+    }
+  }
 
   private getGain(baseGain: number): number {
-    if (this.muted) return 0.00001;
+    if (this.muted || this.volume <= 0) return 0.00001;
     return Math.max(0.00001, baseGain * this.volume);
   }
 
@@ -51,8 +68,6 @@ class SoundManager {
     this.playAudioFile(picked, 0.95);
   }
 
-  private snoreAudio: HTMLAudioElement | null = null;
-
   public playSnore() {
     this.playAudioFile('/sounds/you_are_snoring/snore_1.mp3', 0.8);
   }
@@ -90,7 +105,7 @@ class SoundManager {
 
     for (let i = 0; i < 4; i++) {
       setTimeout(() => {
-        if (!this.ctx) return;
+        if (!this.ctx || this.muted || this.volume <= 0) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
@@ -136,20 +151,21 @@ class SoundManager {
   }
 
   playWinFanfare() {
+    if (this.muted || this.volume <= 0) return;
     this.initCtx();
     if (!this.ctx) return;
 
     const notes = [261.63, 329.63, 392.00, 523.25]; // C E G C
     notes.forEach((freq, idx) => {
       setTimeout(() => {
-        if (!this.ctx) return;
+        if (!this.ctx || this.muted || this.volume <= 0) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
 
-        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.setValueAtTime(this.getGain(0.3), this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
 
         osc.connect(gain);
@@ -162,6 +178,7 @@ class SoundManager {
   }
 
   playClick() {
+    if (this.muted || this.volume <= 0) return;
     this.initCtx();
     if (!this.ctx) return;
 
@@ -172,7 +189,7 @@ class SoundManager {
     osc.frequency.setValueAtTime(800, this.ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.04);
 
-    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+    gain.gain.setValueAtTime(this.getGain(0.15), this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.04);
 
     osc.connect(gain);

@@ -849,8 +849,8 @@ function setupConfigControls() {
   const savedShadows = localStorage.getItem('ludo_shadows_enabled') !== 'false';
 
   // Apply to Sound Manager
-  sounds.muted = savedSoundMuted;
-  sounds.volume = savedSoundVolume / 100;
+  sounds.setMuted(savedSoundMuted);
+  sounds.setVolume(savedSoundVolume / 100);
 
   // Apply to Engine
   engine.setCameraViewMode(savedCameraView, savedPlayerColor);
@@ -907,9 +907,9 @@ function setupConfigControls() {
   if (soundToggle) {
     soundToggle.checked = !savedSoundMuted;
     soundToggle.addEventListener('change', () => {
-      sounds.playClick();
       const isMuted = !soundToggle.checked;
-      sounds.muted = isMuted;
+      sounds.setMuted(isMuted);
+      sounds.playClick();
       localStorage.setItem('ludo_sound_muted', isMuted ? 'true' : 'false');
     });
   }
@@ -924,7 +924,7 @@ function setupConfigControls() {
     soundVolumeSlider.addEventListener('input', () => {
       const volVal = parseInt(soundVolumeSlider.value, 10);
       if (volumeLabel) volumeLabel.textContent = `${volVal}%`;
-      sounds.volume = volVal / 100;
+      sounds.setVolume(volVal / 100);
       localStorage.setItem('ludo_sound_volume', volVal.toString());
     });
   }
