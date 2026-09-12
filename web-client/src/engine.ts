@@ -565,11 +565,17 @@ export class Ludo3DEngine {
       const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
       const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
 
-      // Calculate 3D top stack height point above pawns
-      const stackTopY = p3d.y + (item.totalCount - 1) * 0.22 + 1.25;
-      const worldVec = new THREE.Vector3(p3d.x, stackTopY, p3d.z);
+      // Calculate outward radial offset on board floor (y = 0.28) right outside the tile block
+      const normX = Math.abs(p3d.x) < 0.1 ? 0 : (p3d.x > 0 ? 1 : -1);
+      const normZ = Math.abs(p3d.z) < 0.1 ? 0 : (p3d.z > 0 ? 1 : -1);
 
-      // Project 3D point to 2D Screen Space
+      const labelX = p3d.x + (normX !== 0 ? normX * 0.85 : 0.85);
+      const labelZ = p3d.z + (normZ !== 0 ? normZ * 0.85 : 0);
+      const boardFloorY = 0.28;
+
+      const worldVec = new THREE.Vector3(labelX, boardFloorY, labelZ);
+
+      // Project 3D point on board floor to 2D Screen Space
       worldVec.project(this.camera);
 
       // Verify point is in front of camera
@@ -577,7 +583,7 @@ export class Ludo3DEngine {
         const screenX = (worldVec.x * 0.5 + 0.5) * width;
         const screenY = (-worldVec.y * 0.5 + 0.5) * height;
 
-        // Render badge row container centered horizontally
+        // Render badge row container centered horizontally on board floor
         const rowEl = document.createElement('div');
         rowEl.className = 'stack-badge-row';
         rowEl.style.left = `${screenX}px`;
