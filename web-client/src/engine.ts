@@ -565,17 +565,17 @@ export class Ludo3DEngine {
       const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
       const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
 
-      // Calculate small outward radial offset on the SAME tile block (cell half-width is ~0.49)
-      // Offset of 0.28 units keeps badge strictly on the same tile block right next to the pawns
+      // Calculate small radial offset inside the SAME tile block line alongside the pieces track
+      // Cell half-width is ~0.49; offset of 0.15 units places label neatly inside the tile block line alongside pawns
       let dx = 0;
       let dz = 0;
       const len = Math.hypot(p3d.x, p3d.z);
       if (len > 0.1) {
-        dx = (p3d.x / len) * 0.28;
-        dz = (p3d.z / len) * 0.28;
+        dx = (p3d.x / len) * 0.15;
+        dz = (p3d.z / len) * 0.15;
       } else {
-        dx = 0.28;
-        dz = 0.28;
+        dx = 0.15;
+        dz = 0.15;
       }
 
       const labelX = p3d.x + dx;
