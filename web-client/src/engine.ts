@@ -565,26 +565,11 @@ export class Ludo3DEngine {
       const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
       const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
 
-      // Calculate small radial offset inside the SAME tile block line alongside the pieces track
-      // Cell half-width is ~0.49; offset of 0.15 units places label neatly inside the tile block line alongside pawns
-      let dx = 0;
-      let dz = 0;
-      const len = Math.hypot(p3d.x, p3d.z);
-      if (len > 0.1) {
-        dx = (p3d.x / len) * 0.15;
-        dz = (p3d.z / len) * 0.15;
-      } else {
-        dx = 0.15;
-        dz = 0.15;
-      }
+      // 3D Point positioned directly above the pawn stack top so dots float clearly above the pieces
+      const stackTopY = 0.26 + item.totalCount * 0.28 + 0.65;
+      const worldVec = new THREE.Vector3(p3d.x, stackTopY, p3d.z);
 
-      const labelX = p3d.x + dx;
-      const labelZ = p3d.z + dz;
-      const boardFloorY = 0.28;
-
-      const worldVec = new THREE.Vector3(labelX, boardFloorY, labelZ);
-
-      // Project 3D point on board floor to 2D Screen Space
+      // Project 3D point on top of stack to 2D Screen Space
       worldVec.project(this.camera);
 
       // Verify point is in front of camera
@@ -592,21 +577,22 @@ export class Ludo3DEngine {
         const screenX = (worldVec.x * 0.5 + 0.5) * width;
         const screenY = (-worldVec.y * 0.5 + 0.5) * height;
 
-        // Render badge row container centered horizontally on board floor
+        // Render stack dot row container centered horizontally above stack top
         const rowEl = document.createElement('div');
-        rowEl.className = 'stack-badge-row';
+        rowEl.className = 'stack-dot-row';
         rowEl.style.left = `${screenX}px`;
         rowEl.style.top = `${screenY}px`;
 
-        // Render color arrow badges side-by-side
+        // Output one dot per piece in the stack grouped by color
         const order = ['Red', 'Green', 'Yellow', 'Blue'];
         order.forEach(col => {
           const cnt = item.colorCounts[col];
           if (cnt && cnt > 0) {
-            const badge = document.createElement('div');
-            badge.className = `stack-arrow-badge ${col}`;
-            badge.innerHTML = `<span>${cnt}</span>`;
-            rowEl.appendChild(badge);
+            for (let i = 0; i < cnt; i++) {
+              const dot = document.createElement('div');
+              dot.className = `stack-dot ${col}`;
+              rowEl.appendChild(dot);
+            }
           }
         });
 
