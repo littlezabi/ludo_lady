@@ -17,6 +17,8 @@ pub struct GameState {
     pub winners_rank: Vec<u8>, // Ranking order of players as they finish (0: Red, 1: Green, 2: Yellow, 3: Blue)
     #[serde(default)]
     pub is_game_over: bool, // True only when the entire match is finished for all active players
+    #[serde(default)]
+    pub player_types: Vec<u8>, // 0: Human, 1: Computer AI
 }
 
 impl GameState {
@@ -42,6 +44,7 @@ impl GameState {
             is_team_mode: false,
             winners_rank: Vec::new(),
             is_game_over: false,
+            player_types: vec![0; num_players as usize],
         }
     }
 
@@ -314,5 +317,137 @@ impl GameState {
 
     fn check_winner(&self, player_idx: u8) -> bool {
         self.is_player_finished(player_idx)
+    }
+
+    pub fn select_best_ai_move(&self) -> Option<u8> {
+        let valid_tokens = self.get_valid_tokens();
+        if valid_tokens.is_empty() {
+            return None;
+        }
+
+        let roll = self.dice_roll;
+        let mut best_token_id = valid_tokens[0];
+        let mut max_score = i32::MIN;
+
+        let is_teammate = |c1: PlayerColor, c2: PlayerColor| -> bool {
+            if !self.is_team_mode {
+                c1 == c2
+            } else {
+                (c1 as u8 % 2) == (c2 as u8 % 2)
+            }
+        };
+
+        for &token_id in &valid_tokens {
+            let mut score: i32 = 0;
+            let token = self.tokens.iter().find(|t| t.id == token_id).unwrap();
+            let color = token.color;
+
+            let start_track = color.start_track_index();
+
+            // 1. Spawning out of base
+            if token.is_at_base() {
+                let active_on_track = self.tokens.iter()
+                    .filter(|t| t.color == color && !t.is_at_base() && !t.is_finished())
+                    .count();
+
+                if active_on_track == 0 {
+                    score += 450; // High priority to get 1st piece out!
+                } else if active_on_track < 3 {
+                    score += 280; // Bring more pieces onto board
+                } else {
+                    score += 150;
+                }
+            } else {
+                let new_steps = token.steps_taken + roll;
+
+                // 2. Reaching Home finish (57)
+                if new_steps == 57 {
+                    score += 1200; // TOP PRIORITY: Complete piece into home!
+                } else if new_steps > 51 {
+                    // Moving inside home stretch
+                    score += 400 + (new_steps as i32) * 5;
+                } else {
+                    // On main track
+                    let new_pos = ((start_track as u16 + new_steps as u16 - 1) % 52) as i16;
+
+                    // 3. Capturing opponent pieces/stacks
+                    if !is_safe_zone(new_pos as u8) {
+                        let opp_count: usize = self.tokens.iter().filter(|t| {
+                            !is_teammate(t.color, color)
+                                && t.position == new_pos
+                                && !t.is_at_base()
+                                && !t.is_finished()
+                        }).count();
+
+                        let friendly_count: usize = self.tokens.iter().filter(|t| {
+                            is_teammate(t.color, color)
+                                && t.position == new_pos
+                                && !t.is_at_base()
+                                && !t.is_finished()
+                        }).count();
+
+                        if opp_count > 0 && (friendly_count + 1) >= opp_count {
+                            score += 1000 + (opp_count as i32) * 150; // CRITICAL ATTACK BONUS!
+                        }
+                    }
+
+                    // 4. Safe zone landing
+                    if is_safe_zone(new_pos as u8) {
+                        score += 450;
+                    }
+
+                    // 5. Creating or joining a friendly stack (Blockade / Jora)
+                    let existing_friendly_on_tile = self.tokens.iter().filter(|t| {
+                        t.color == color
+                            && t.id != token_id
+                            && t.position == new_pos
+                    }).count();
+
+                    if existing_friendly_on_tile > 0 {
+                        score += 380; // Form a solid stack!
+                    }
+
+                    // 6. Escaping current danger (was token threatened by an opponent within 1..6 tiles behind?)
+                    let curr_pos = token.position;
+                    let mut was_in_danger = false;
+                    for opp in &self.tokens {
+                        if !is_teammate(opp.color, color) && opp.position >= 0 && opp.position < 52 {
+                            let dist = (curr_pos - opp.position + 52) % 52;
+                            if dist >= 1 && dist <= 6 {
+                                was_in_danger = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if was_in_danger && (is_safe_zone(new_pos as u8) || existing_friendly_on_tile > 0) {
+                        score += 550; // Escape from danger to safety!
+                    }
+
+                    // 7. Avoid landing in immediate danger (opponent 1..6 tiles behind target tile)
+                    if !is_safe_zone(new_pos as u8) && existing_friendly_on_tile == 0 {
+                        for opp in &self.tokens {
+                            if !is_teammate(opp.color, color) && opp.position >= 0 && opp.position < 52 {
+                                let dist = (new_pos - opp.position + 52) % 52;
+                                if dist >= 1 && dist <= 6 {
+                                    score -= 300; // Threat penalty!
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // 8. General track progression
+                    score += token.steps_taken as i32;
+                }
+            }
+
+            if score > max_score {
+                max_score = score;
+                best_token_id = token_id;
+            }
+        }
+
+        Some(best_token_id)
     }
 }

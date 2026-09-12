@@ -1,4 +1,4 @@
-import init, { create_game, create_game_mode, roll_dice, get_valid_tokens, move_token } from './wasm_pkg/rust_core.js';
+import init, { create_game, create_game_mode, create_game_vs_computer, roll_dice, get_valid_tokens, get_best_ai_move, move_token } from './wasm_pkg/rust_core.js';
 
 export interface TokenState {
   id: number;
@@ -18,6 +18,7 @@ export interface GameState {
   is_team_mode?: boolean;
   winners_rank?: number[];
   is_game_over?: boolean;
+  player_types?: number[]; // 0: Human, 1: Computer AI
 }
 
 let isInitialized = false;
@@ -34,6 +35,11 @@ export function newGame(numPlayers: number = 4, isTeamMode: boolean = false): Ga
   return JSON.parse(jsonStr);
 }
 
+export function newGameVsComputer(numPlayers: number = 4, isTeamMode: boolean = false, computerCount: number = 1): GameState {
+  const jsonStr = create_game_vs_computer(numPlayers, isTeamMode, computerCount);
+  return JSON.parse(jsonStr);
+}
+
 export function rollDiceState(currentState: GameState): GameState {
   const inputStr = JSON.stringify(currentState);
   const resultStr = roll_dice(inputStr);
@@ -44,6 +50,11 @@ export function getValidMoveTokenIds(currentState: GameState): number[] {
   const inputStr = JSON.stringify(currentState);
   const resultStr = get_valid_tokens(inputStr);
   return JSON.parse(resultStr);
+}
+
+export function getBestAIMoveTokenId(currentState: GameState): number {
+  const inputStr = JSON.stringify(currentState);
+  return get_best_ai_move(inputStr);
 }
 
 export function applyMoveToken(currentState: GameState, tokenId: number): GameState {

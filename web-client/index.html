@@ -973,9 +973,10 @@
 
       <!-- Navigation Tabs -->
       <div class="menu-tabs">
-        <button class="tab-btn active" id="tab-create">✨ Create Room</button>
-        <button class="tab-btn" id="tab-join">🚪 Join Room</button>
-        <button class="tab-btn" id="tab-local">⚡ Quick Play</button>
+        <button class="tab-btn active" id="tab-create">✨ Create</button>
+        <button class="tab-btn" id="tab-join">🚪 Join</button>
+        <button class="tab-btn" id="tab-local">⚡ Local</button>
+        <button class="tab-btn" id="tab-computer">🤖 vs Bot</button>
       </div>
 
       <!-- Create Room Content -->
@@ -1048,6 +1049,40 @@
 
         <button class="btn-primary-action" id="btn-start-local-game">
           🎮 Start Local Match
+        </button>
+      </div>
+
+      <!-- Play vs Computer Content -->
+      <div class="tab-content" id="content-computer">
+        <div class="form-group">
+          <label class="form-label">⚔️ Game Match Type</label>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-top:0.3rem;">
+            <button class="config-view-btn mode-select-btn active" data-mode="classic" id="btn-mode-classic-computer">
+              👥 Classic<br><span style="font-size:0.68rem; font-weight:normal; opacity:0.8;">Free-For-All</span>
+            </button>
+            <button class="config-view-btn mode-select-btn" data-mode="team" id="btn-mode-team-computer">
+              🤝 2v2 Team Mode<br><span style="font-size:0.68rem; font-weight:normal; opacity:0.8;">Red+Yellow vs Green+Blue</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">🤖 Computer Opponent Setup</label>
+          <select id="menu-computer-config">
+            <option value="3" selected>1 Human vs 3 Hard AI Computers (Red vs Green, Yellow, Blue)</option>
+            <option value="2">2 Humans vs 2 Hard AI Computers (Red, Green vs Yellow, Blue)</option>
+            <option value="1">1v1: 1 Human vs 1 Hard AI Computer (Red vs Yellow)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.4;">
+            Challenge advanced tactical AI bots! Computers evaluate aggressive captures (+1000 pts), home stretch safety (+1200 pts), threat evasion, and blockades.
+          </p>
+        </div>
+
+        <button class="btn-primary-action" id="btn-start-computer-game">
+          🤖 Start Match vs Computer
         </button>
       </div>
 

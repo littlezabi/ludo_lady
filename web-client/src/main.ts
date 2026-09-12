@@ -1,4 +1,4 @@
-import { initWasmModule, newGame, rollDiceState, getValidMoveTokenIds, applyMoveToken, GameState } from './wasmLoader';
+import { initWasmModule, newGame, newGameVsComputer, rollDiceState, getValidMoveTokenIds, getBestAIMoveTokenId, applyMoveToken, GameState } from './wasmLoader';
 import { Ludo3DEngine, CameraViewMode } from './engine';
 import { joinRoom, broadcastGameState, generateRoomCode } from './network';
 import { sounds } from './soundEffects';
@@ -124,10 +124,12 @@ function setupMenuControls() {
   const tabCreate = document.getElementById('tab-create')!;
   const tabJoin = document.getElementById('tab-join')!;
   const tabLocal = document.getElementById('tab-local')!;
+  const tabComputer = document.getElementById('tab-computer')!;
 
   const contentCreate = document.getElementById('content-create')!;
   const contentJoin = document.getElementById('content-join')!;
   const contentLocal = document.getElementById('content-local')!;
+  const contentComputer = document.getElementById('content-computer')!;
 
   const generatedCodeEl = document.getElementById('generated-room-code')!;
   const btnCopy = document.getElementById('btn-copy-generated')!;
@@ -156,8 +158,8 @@ function setupMenuControls() {
   // Tab Switching Logic
   const switchTab = (activeBtn: HTMLElement, activeContent: HTMLElement) => {
     sounds.playClick();
-    [tabCreate, tabJoin, tabLocal].forEach(btn => btn.classList.remove('active'));
-    [contentCreate, contentJoin, contentLocal].forEach(content => content.classList.remove('active'));
+    [tabCreate, tabJoin, tabLocal, tabComputer].forEach(btn => btn?.classList.remove('active'));
+    [contentCreate, contentJoin, contentLocal, contentComputer].forEach(content => content?.classList.remove('active'));
 
     activeBtn.classList.add('active');
     activeContent.classList.add('active');
@@ -166,6 +168,7 @@ function setupMenuControls() {
   tabCreate.addEventListener('click', () => switchTab(tabCreate, contentCreate));
   tabJoin.addEventListener('click', () => switchTab(tabJoin, contentJoin));
   tabLocal.addEventListener('click', () => switchTab(tabLocal, contentLocal));
+  tabComputer?.addEventListener('click', () => switchTab(tabComputer, contentComputer));
 
   // Copy Room Code
   btnCopy.addEventListener('click', () => {
@@ -231,6 +234,24 @@ function setupMenuControls() {
     validTokenIds = [];
 
     updateRoomDisplay(isTeamMode ? "Local Match (2v2 Teams)" : "Local Match");
+    mainMenuOverlay.classList.add('hidden');
+    updateUI();
+  });
+
+  // Start Computer Game Button
+  document.getElementById('btn-start-computer-game')?.addEventListener('click', () => {
+    sounds.playClick();
+    roomCode = null;
+    const isTeamMode = selectedGameMode === 'team';
+    const select = document.getElementById('menu-computer-config') as HTMLSelectElement;
+    const computerCount = parseInt(select ? select.value : '3', 10);
+    const numPlayers = computerCount === 1 ? 2 : 4;
+
+    gameState = newGameVsComputer(numPlayers, isTeamMode, computerCount);
+    validTokenIds = [];
+
+    const modeLabel = isTeamMode ? "vs Computer (2v2 Team)" : "vs Computer";
+    updateRoomDisplay(modeLabel);
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -583,11 +604,14 @@ function updateUI() {
 
   // Turn Badge
   const turnBadge = document.getElementById('turn-badge')!;
+  const isBot = gameState.player_types && gameState.player_types[gameState.current_turn] === 1;
+  const botLabel = isBot ? " (🤖 Bot)" : "";
+
   if (gameState.is_team_mode) {
     const teamLabel = gameState.current_turn % 2 === 0 ? "Team A (Red & Yellow)" : "Team B (Green & Blue)";
-    turnBadge.textContent = `${currentTurnColor}'s Turn [${teamLabel}]`;
+    turnBadge.textContent = `${currentTurnColor}${botLabel}'s Turn [${teamLabel}]`;
   } else {
-    turnBadge.textContent = `${currentTurnColor}'s Turn`;
+    turnBadge.textContent = `${currentTurnColor}${botLabel}'s Turn`;
   }
   turnBadge.style.backgroundColor = `${currentTurnHex}22`;
   turnBadge.style.color = currentTurnHex;
@@ -659,6 +683,62 @@ function updateUI() {
   const btnOpenDebug = document.getElementById('btn-open-debug');
   if (btnOpenDebug) {
     btnOpenDebug.style.display = isDebugModeEnabled ? 'flex' : 'none';
+  }
+
+  // Auto-schedule Computer AI Turn execution if active player is a bot
+  scheduleAITurnIfNeeded();
+}
+
+let aiTurnTimeout: any = null;
+
+function scheduleAITurnIfNeeded() {
+  if (!gameState || gameState.is_game_over) return;
+
+  const currentTurn = gameState.current_turn;
+  const playerTypes = gameState.player_types ?? [0, 0, 0, 0];
+
+  if (playerTypes[currentTurn] !== 1) {
+    if (aiTurnTimeout) {
+      clearTimeout(aiTurnTimeout);
+      aiTurnTimeout = null;
+    }
+    return;
+  }
+
+  if (engine && engine.isDiceRolling) {
+    setTimeout(scheduleAITurnIfNeeded, 200);
+    return;
+  }
+
+  if (aiTurnTimeout) return;
+
+  if (gameState.dice_roll === 0) {
+    aiTurnTimeout = setTimeout(() => {
+      aiTurnTimeout = null;
+      if (gameState && gameState.player_types && gameState.player_types[gameState.current_turn] === 1 && gameState.dice_roll === 0 && !gameState.is_game_over) {
+        handleRollDice();
+      }
+    }, 600);
+  } else {
+    validTokenIds = getValidMoveTokenIds(gameState);
+
+    if (validTokenIds.length > 0) {
+      aiTurnTimeout = setTimeout(() => {
+        aiTurnTimeout = null;
+        if (gameState && gameState.player_types && gameState.player_types[gameState.current_turn] === 1 && gameState.dice_roll > 0 && !gameState.is_game_over) {
+          const bestTokenId = getBestAIMoveTokenId(gameState);
+          const targetId = (bestTokenId !== null && validTokenIds.includes(bestTokenId)) ? bestTokenId : validTokenIds[0];
+          handlePawnClick(targetId);
+        }
+      }, 750);
+    } else {
+      aiTurnTimeout = setTimeout(() => {
+        aiTurnTimeout = null;
+        if (gameState && gameState.player_types && gameState.player_types[gameState.current_turn] === 1 && !gameState.is_game_over) {
+          handleRollDice();
+        }
+      }, 750);
+    }
   }
 }
 
