@@ -495,7 +495,6 @@ export class Ludo3DEngine {
         this.pawnWaypoints.set(token.id, waypointsVec);
       } else if (prevSteps === -1 && token.steps_taken === 0) {
         this.capturedRewindTokens.delete(token.id);
-        sounds.playPieceEntry();
         this.pawnTargetPositions.set(token.id, targetVec);
       } else {
         this.capturedRewindTokens.delete(token.id);

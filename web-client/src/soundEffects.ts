@@ -29,15 +29,6 @@ class SoundManager {
     }
   }
 
-  public playPieceEntry() {
-    const files = [
-      '/sounds/piece_entry/entry_1.mp3',
-      '/sounds/piece_entry/entry_2.mp3'
-    ];
-    const picked = files[Math.floor(Math.random() * files.length)];
-    this.playAudioFile(picked, 0.85);
-  }
-
   public playPieceHit() {
     const files = [
       '/sounds/piece_hit_piece/hit_1.mp3',
