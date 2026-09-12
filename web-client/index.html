@@ -758,6 +758,65 @@
       }
     }
 
+    /* Floating Dice 6 Hit Pop-up Overlay */
+    .dice-six-bubble {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 400;
+      animation: sixPopBounce 2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    .dice-six-bubble .six-icon {
+      font-size: 3.2rem;
+      filter: drop-shadow(0 10px 25px rgba(245, 158, 11, 0.85));
+      line-height: 1;
+    }
+
+    .dice-six-bubble .six-label {
+      font-size: 0.85rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      margin-top: 0.4rem;
+      white-space: nowrap;
+      background: linear-gradient(135deg, #eab308, #f97316);
+      color: #0f172a;
+      border: 2px solid #ffffff;
+      box-shadow: 0 4px 20px rgba(234, 179, 8, 0.7), 0 0 30px rgba(249, 115, 22, 0.5);
+    }
+
+    @keyframes sixPopBounce {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, 30px) scale(0.1) rotate(-20deg);
+      }
+      20% {
+        opacity: 1;
+        transform: translate(-50%, -40px) scale(1.5) rotate(10deg);
+      }
+      35% {
+        transform: translate(-50%, -25px) scale(0.95) rotate(-5deg);
+      }
+      50% {
+        transform: translate(-50%, -32px) scale(1.1) rotate(0deg);
+      }
+      75% {
+        opacity: 1;
+        transform: translate(-50%, -55px) scale(1) rotate(0deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -90px) scale(0.5) rotate(0deg);
+      }
+    }
+
     /* Developer Debug HUD & Cheat Controls */
     .btn-cheat-action {
       background: rgba(30, 41, 59, 0.9);

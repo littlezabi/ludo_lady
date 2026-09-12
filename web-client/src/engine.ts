@@ -164,7 +164,8 @@ export class Ludo3DEngine {
   }
 
   private buildDice(): void {
-    const diceGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+    // Reduced dice size from 1.2 to 0.80 for elegant, proportional 3D appearance
+    const diceGeo = new THREE.BoxGeometry(0.80, 0.80, 0.80);
     
     // Procedural Dice Face Materials
     const materials: THREE.MeshStandardMaterial[] = [];
@@ -181,7 +182,7 @@ export class Ludo3DEngine {
       ctx.strokeRect(4, 4, 120, 120);
 
       // Draw Dots
-      ctx.fillStyle = '#0f172a';
+      ctx.fillStyle = i === 6 ? '#dc2626' : '#0f172a'; // Red dots for 6 face!
       const drawDot = (x: number, y: number) => {
         ctx.beginPath();
         ctx.arc(x, y, 12, 0, Math.PI * 2);
@@ -200,11 +201,11 @@ export class Ludo3DEngine {
       if (i === 6) { drawDot(l, l); drawDot(r, l); drawDot(l, c); drawDot(r, c); drawDot(l, r); drawDot(r, r); }
 
       const tex = new THREE.CanvasTexture(canvas);
-      materials.push(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.0 }));
+      materials.push(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4, metalness: 0.1 }));
     }
 
     this.diceMesh = new THREE.Mesh(diceGeo, materials);
-    this.diceMesh.position.set(0, 1.0, 0);
+    this.diceMesh.position.set(0, 0.66, 0); // Positioned cleanly on center floor surface (y = 0.26 + 0.40)
     this.diceMesh.castShadow = true;
     this.scene.add(this.diceMesh);
   }
@@ -236,7 +237,65 @@ export class Ludo3DEngine {
     setTimeout(() => {
       this.isDiceRolling = false;
       this.diceMesh.rotation.set(target.x, target.y, target.z);
+
+      if (rollValue === 6) {
+        this.triggerSixAnimation();
+      }
     }, 500);
+  }
+
+  public triggerSixAnimation(): void {
+    sounds.playWinFanfare();
+
+    // 1. Emissive Gold Glow Pulse on Dice Mesh
+    if (this.diceMesh && Array.isArray(this.diceMesh.material)) {
+      this.diceMesh.material.forEach(mat => {
+        if ('emissive' in mat) {
+          (mat as THREE.MeshStandardMaterial).emissive.setHex(0xf59e0b);
+          (mat as THREE.MeshStandardMaterial).emissiveIntensity = 0.8;
+        }
+      });
+
+      setTimeout(() => {
+        if (this.diceMesh && Array.isArray(this.diceMesh.material)) {
+          this.diceMesh.material.forEach(mat => {
+            if ('emissive' in mat) {
+              (mat as THREE.MeshStandardMaterial).emissiveIntensity = 0;
+            }
+          });
+        }
+      }, 1600);
+    }
+
+    // 2. Floating Celebratory 6 Badge
+    const overlayContainer = document.getElementById('emoji-overlay-container');
+    if (!overlayContainer) return;
+
+    const vector = new THREE.Vector3(0, 1.6, 0);
+    vector.project(this.camera);
+
+    const canvas = this.renderer.domElement;
+    const widthHalf = canvas.clientWidth / 2;
+    const heightHalf = canvas.clientHeight / 2;
+
+    const screenX = (vector.x * widthHalf) + widthHalf;
+    const screenY = -(vector.y * heightHalf) + heightHalf;
+
+    const bubble = document.createElement('div');
+    bubble.className = `dice-six-bubble`;
+    bubble.style.left = `${screenX}px`;
+    bubble.style.top = `${screenY}px`;
+
+    bubble.innerHTML = `
+      <div class="six-icon">🔥 🎲6️⃣ 🔥</div>
+      <div class="six-label">BONUS ROLL 6!</div>
+    `;
+
+    overlayContainer.appendChild(bubble);
+
+    setTimeout(() => {
+      bubble.remove();
+    }, 2000);
   }
 
   public selectedDebugTokenId: number | null = null;
