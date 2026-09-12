@@ -778,6 +778,68 @@ export class Ludo3DEngine {
     });
   }
 
+  public triggerCaptureEmojis(hitterColorIdx: number, victimColorIdx: number): void {
+    const overlayContainer = document.getElementById('emoji-overlay-container');
+    if (!overlayContainer) return;
+
+    // Home corner 3D coordinates for Red(0), Green(1), Yellow(2), Blue(3)
+    const homeCorners = [
+      new THREE.Vector3(-4.45, 1.8, -4.45), // Red - Top-Left
+      new THREE.Vector3(4.45, 1.8, -4.45),  // Green - Top-Right
+      new THREE.Vector3(4.45, 1.8, 4.45),   // Yellow - Bottom-Right
+      new THREE.Vector3(-4.45, 1.8, 4.45)   // Blue - Bottom-Left
+    ];
+
+    const colorNames = ['Red', 'Green', 'Yellow', 'Blue'];
+    const hitterEmojiList = ['😂', '🤣', '😆', '🤪', '😈', '🔥', '💥', '😎'];
+    const victimEmojiList = ['😭', '😱', '🥺', '😡', '💀', '💔', '😭', '🤡'];
+
+    const hitterLabels = ['HA HA!', 'GOT YOU!', 'BOOM!', 'TROLLING!', 'BYE BYE!'];
+    const victimLabels = ['OH NO!', 'HIT!', 'OUCH!', 'SO CLOSE!', 'NOOO!'];
+
+    const createBubble = (colorIdx: number, isHitter: boolean) => {
+      const safeIdx = Math.max(0, Math.floor(colorIdx)) % 4;
+      const worldPos = homeCorners[safeIdx].clone();
+
+      // Project 3D vector to screen NDC space
+      const vector = worldPos.clone();
+      vector.project(this.camera);
+
+      const canvas = this.renderer.domElement;
+      const widthHalf = canvas.clientWidth / 2;
+      const heightHalf = canvas.clientHeight / 2;
+
+      const screenX = (vector.x * widthHalf) + widthHalf;
+      const screenY = -(vector.y * heightHalf) + heightHalf;
+
+      const bubble = document.createElement('div');
+      bubble.className = `capture-emoji-bubble ${isHitter ? 'hitter' : 'victim'}`;
+      bubble.style.left = `${screenX}px`;
+      bubble.style.top = `${screenY}px`;
+
+      const emojiList = isHitter ? hitterEmojiList : victimEmojiList;
+      const labelList = isHitter ? hitterLabels : victimLabels;
+
+      const emoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+      const labelText = labelList[Math.floor(Math.random() * labelList.length)];
+
+      bubble.innerHTML = `
+        <div class="emoji-icon">${emoji}</div>
+        <div class="emoji-label">${colorNames[safeIdx]}: ${labelText}</div>
+      `;
+
+      overlayContainer.appendChild(bubble);
+
+      setTimeout(() => {
+        bubble.remove();
+      }, 2200);
+    };
+
+    // Trigger hitter laughing emoji and victim crying emoji
+    createBubble(hitterColorIdx, true);
+    createBubble(victimColorIdx, false);
+  }
+
   private updateCameraAspect(): void {
     const aspect = this.container.clientWidth / this.container.clientHeight;
     this.camera.aspect = aspect;

@@ -49,6 +49,29 @@ async function bootstrap() {
   }
 }
 
+function handleRemoteStateUpdate(remoteState: GameState) {
+  if (gameState && gameState.tokens && remoteState.tokens) {
+    let victimColorIdx: number | null = null;
+    const hitterColorIdx = gameState.current_turn;
+    remoteState.tokens.forEach((t, idx) => {
+      const prevT = gameState.tokens[idx];
+      const tColorIdx = Math.floor(t.id / 4);
+      if (prevT && prevT.position >= 0 && t.position === -1 && tColorIdx !== hitterColorIdx) {
+        victimColorIdx = tColorIdx;
+      }
+    });
+
+    if (victimColorIdx !== null) {
+      sounds.playCapture();
+      engine.triggerCaptureEmojis(hitterColorIdx, victimColorIdx);
+    }
+  }
+
+  gameState = remoteState;
+  validTokenIds = getValidMoveTokenIds(gameState);
+  updateUI();
+}
+
 function setupMenuControls() {
   const mainMenuOverlay = document.getElementById('main-menu-overlay')!;
   const tabCreate = document.getElementById('tab-create')!;
@@ -103,9 +126,7 @@ function setupMenuControls() {
 
     // Connect to Supabase Room Channel
     joinRoom(roomCode, (remoteState) => {
-      gameState = remoteState;
-      validTokenIds = getValidMoveTokenIds(gameState);
-      updateUI();
+      handleRemoteStateUpdate(remoteState);
     });
 
     broadcastGameState(gameState);
@@ -128,9 +149,7 @@ function setupMenuControls() {
 
     roomCode = code;
     joinRoom(roomCode, (remoteState) => {
-      gameState = remoteState;
-      validTokenIds = getValidMoveTokenIds(gameState);
-      updateUI();
+      handleRemoteStateUpdate(remoteState);
     });
 
     updateRoomDisplay(`Room: ${roomCode}`);
@@ -247,13 +266,28 @@ function moveSelectedTokenDebugForward(tokenId: number) {
 
 function handlePawnClick(tokenId: number) {
   if (gameState.dice_roll > 0 && gameState.winner === null && validTokenIds.includes(tokenId)) {
+    const oldTokens = gameState.tokens.map(t => ({ color_idx: Math.floor(t.id / 4), position: t.position }));
+    const hitterColorIdx = gameState.current_turn;
+
     gameState = applyMoveToken(gameState, tokenId);
     validTokenIds = [];
     selectedDebugTokenId = null;
     engine.selectedDebugTokenId = null;
 
-    // Check audio triggers
-    if (gameState.last_action.includes("captured")) {
+    // Detect if a piece was captured and sent back to base (-1)
+    let victimColorIdx: number | null = null;
+    gameState.tokens.forEach((t, idx) => {
+      const oldT = oldTokens[idx];
+      const tColorIdx = Math.floor(t.id / 4);
+      if (oldT && oldT.position >= 0 && t.position === -1 && tColorIdx !== hitterColorIdx) {
+        victimColorIdx = tColorIdx;
+      }
+    });
+
+    if (victimColorIdx !== null) {
+      sounds.playCapture();
+      engine.triggerCaptureEmojis(hitterColorIdx, victimColorIdx);
+    } else if (gameState.last_action.includes("captured")) {
       sounds.playCapture();
     }
 
