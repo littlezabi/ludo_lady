@@ -1,12 +1,13 @@
 import { initWasmModule, newGame, rollDiceState, getValidMoveTokenIds, applyMoveToken, GameState } from './wasmLoader';
 import { Ludo3DEngine } from './engine';
-import { joinRoom, broadcastGameState } from './network';
+import { joinRoom, broadcastGameState, generateRoomCode } from './network';
 import { sounds } from './soundEffects';
 
 let engine: Ludo3DEngine;
 let gameState: GameState;
 let validTokenIds: number[] = [];
 let roomCode: string | null = null;
+let generatedRoomCode: string = '';
 
 async function bootstrap() {
   const loadingOverlay = document.getElementById('loading-overlay')!;
@@ -20,17 +21,21 @@ async function bootstrap() {
     // 2. Initialize 3D Viewport
     engine = new Ludo3DEngine(canvasContainer);
 
-    // 3. Initialize New 4-Player Game State
+    // 3. Initialize Default 4-Player Local Game State
     gameState = newGame(4);
     updateUI();
 
-    // 4. Bind 3D Pawn Touch/Click
+    // 4. Bind 3D Pawn Click/Touch
     engine.setOnTokenClicked((tokenId: number) => {
       handlePawnClick(tokenId);
     });
 
-    // 5. Setup UI Event Listeners
+    // 5. Setup Menu Tabs and Control Listeners
+    setupMenuControls();
     setupUIControls();
+
+    // 6. Check URL query params for direct room join link (?room=123456)
+    checkURLRoomCode();
 
     // Hide Loading Screen
     loadingOverlay.style.opacity = '0';
@@ -42,10 +47,154 @@ async function bootstrap() {
   }
 }
 
+function setupMenuControls() {
+  const mainMenuOverlay = document.getElementById('main-menu-overlay')!;
+  const tabCreate = document.getElementById('tab-create')!;
+  const tabJoin = document.getElementById('tab-join')!;
+  const tabLocal = document.getElementById('tab-local')!;
+
+  const contentCreate = document.getElementById('content-create')!;
+  const contentJoin = document.getElementById('content-join')!;
+  const contentLocal = document.getElementById('content-local')!;
+
+  const generatedCodeEl = document.getElementById('generated-room-code')!;
+  const btnCopy = document.getElementById('btn-copy-generated')!;
+
+  // Generate Initial Room Code
+  generatedRoomCode = generateRoomCode();
+  generatedCodeEl.textContent = generatedRoomCode;
+
+  // Tab Switching Logic
+  const switchTab = (activeBtn: HTMLElement, activeContent: HTMLElement) => {
+    sounds.playClick();
+    [tabCreate, tabJoin, tabLocal].forEach(btn => btn.classList.remove('active'));
+    [contentCreate, contentJoin, contentLocal].forEach(content => content.classList.remove('active'));
+
+    activeBtn.classList.add('active');
+    activeContent.classList.add('active');
+  };
+
+  tabCreate.addEventListener('click', () => switchTab(tabCreate, contentCreate));
+  tabJoin.addEventListener('click', () => switchTab(tabJoin, contentJoin));
+  tabLocal.addEventListener('click', () => switchTab(tabLocal, contentLocal));
+
+  // Copy Room Code
+  btnCopy.addEventListener('click', () => {
+    sounds.playClick();
+    navigator.clipboard.writeText(generatedRoomCode).then(() => {
+      btnCopy.textContent = '✓ Copied!';
+      setTimeout(() => {
+        btnCopy.textContent = '📋 Copy';
+      }, 2000);
+    });
+  });
+
+  // Create Room Button
+  document.getElementById('btn-start-created-room')?.addEventListener('click', () => {
+    sounds.playClick();
+    const select = document.getElementById('menu-player-count') as HTMLSelectElement;
+    const numPlayers = parseInt(select.value, 10);
+
+    roomCode = generatedRoomCode;
+    gameState = newGame(numPlayers);
+    validTokenIds = [];
+
+    // Connect to Supabase Room Channel
+    joinRoom(roomCode, (remoteState) => {
+      gameState = remoteState;
+      validTokenIds = getValidMoveTokenIds(gameState);
+      updateUI();
+    });
+
+    broadcastGameState(gameState);
+
+    updateRoomDisplay(`Room: ${roomCode}`);
+    mainMenuOverlay.classList.add('hidden');
+    updateUI();
+  });
+
+  // Join Room Button
+  document.getElementById('btn-submit-join-room')?.addEventListener('click', () => {
+    sounds.playClick();
+    const input = document.getElementById('menu-join-code-input') as HTMLInputElement;
+    const code = input.value.trim().toUpperCase();
+
+    if (!code) {
+      alert("Please enter a valid room code.");
+      return;
+    }
+
+    roomCode = code;
+    joinRoom(roomCode, (remoteState) => {
+      gameState = remoteState;
+      validTokenIds = getValidMoveTokenIds(gameState);
+      updateUI();
+    });
+
+    updateRoomDisplay(`Room: ${roomCode}`);
+    mainMenuOverlay.classList.add('hidden');
+    updateUI();
+  });
+
+  // Start Local Game Button
+  document.getElementById('btn-start-local-game')?.addEventListener('click', () => {
+    sounds.playClick();
+    roomCode = null;
+    gameState = newGame(4);
+    validTokenIds = [];
+
+    updateRoomDisplay("Local Match");
+    mainMenuOverlay.classList.add('hidden');
+    updateUI();
+  });
+
+  // Open Main Menu Button in Header
+  document.getElementById('btn-open-menu')?.addEventListener('click', () => {
+    sounds.playClick();
+    mainMenuOverlay.classList.remove('hidden');
+  });
+
+  document.getElementById('header-logo')?.addEventListener('click', () => {
+    sounds.playClick();
+    mainMenuOverlay.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-winner-re-open-menu')?.addEventListener('click', () => {
+    sounds.playClick();
+    document.getElementById('winner-modal')!.style.display = 'none';
+    mainMenuOverlay.classList.remove('hidden');
+  });
+}
+
+function checkURLRoomCode() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const codeParam = urlParams.get('room');
+
+  if (codeParam) {
+    const input = document.getElementById('menu-join-code-input') as HTMLInputElement;
+    if (input) {
+      input.value = codeParam.toUpperCase();
+    }
+    const tabJoin = document.getElementById('tab-join')!;
+    const contentJoin = document.getElementById('content-join')!;
+    if (tabJoin && contentJoin) {
+      tabJoin.click();
+    }
+  }
+}
+
+function updateRoomDisplay(label: string) {
+  const headerRoomCode = document.getElementById('header-room-code');
+  if (headerRoomCode) {
+    headerRoomCode.textContent = label;
+  }
+}
+
 function handleRollDice() {
   if (gameState.winner !== null) return;
   if (gameState.dice_roll > 0 && validTokenIds.length > 0) return; // Must move first
 
+  sounds.playClick();
   gameState = rollDiceState(gameState);
   engine.triggerDiceAnimation(gameState.dice_roll);
 
@@ -62,11 +211,10 @@ function handlePawnClick(tokenId: number) {
   if (gameState.dice_roll === 0 || gameState.winner !== null) return;
   if (!validTokenIds.includes(tokenId)) return;
 
-  const prevState = { ...gameState };
   gameState = applyMoveToken(gameState, tokenId);
   validTokenIds = [];
 
-  // Check if capture occurred
+  // Check audio triggers
   if (gameState.last_action.includes("captured")) {
     sounds.playCapture();
   }
@@ -127,28 +275,6 @@ function updateUI() {
 
 function setupUIControls() {
   document.getElementById('btn-roll')?.addEventListener('click', handleRollDice);
-
-  document.getElementById('btn-new-game')?.addEventListener('click', () => {
-    const num = parseInt((document.getElementById('num-players-select') as HTMLSelectElement).value);
-    gameState = newGame(num);
-    validTokenIds = [];
-    document.getElementById('winner-modal')!.style.display = 'none';
-    updateUI();
-  });
-
-  // Room Join
-  document.getElementById('btn-join-room')?.addEventListener('click', () => {
-    const codeInput = (document.getElementById('room-code-input') as HTMLInputElement).value.trim();
-    if (codeInput) {
-      roomCode = codeInput;
-      joinRoom(roomCode, (remoteState) => {
-        gameState = remoteState;
-        validTokenIds = getValidMoveTokenIds(gameState);
-        updateUI();
-      });
-      alert(`Joined Room ${roomCode}! Sync active.`);
-    }
-  });
 }
 
 window.addEventListener('DOMContentLoaded', bootstrap);

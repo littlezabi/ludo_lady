@@ -41,6 +41,11 @@ impl GameState {
             return self.dice_roll;
         }
 
+        // If previous turn had no valid moves (and was not a 6), advance turn now before rolling
+        if self.dice_roll > 0 && self.get_valid_tokens().is_empty() {
+            self.next_turn();
+        }
+
         let mut rng = rand::thread_rng();
         let roll: u8 = rng.gen_range(1..=6);
         self.dice_roll = roll;
@@ -65,10 +70,6 @@ impl GameState {
         // Check if current player has any valid moves
         if self.get_valid_tokens().is_empty() {
             self.last_action.push_str(" (No valid moves available)");
-            // If no six and no valid moves, advance turn automatically
-            if roll != 6 {
-                self.next_turn();
-            }
         }
 
         self.dice_roll

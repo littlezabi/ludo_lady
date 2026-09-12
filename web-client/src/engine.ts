@@ -201,29 +201,29 @@ export class Ludo3DEngine {
     this.isDiceRolling = true;
     sounds.playDiceRoll();
 
-    // Set rotation target depending on face value
-    const faceRotations: { [key: number]: { x: number; z: number } } = {
-      1: { x: 0, z: -Math.PI / 2 },
-      2: { x: 0, z: Math.PI / 2 },
-      3: { x: Math.PI / 2, z: 0 },
-      4: { x: -Math.PI / 2, z: 0 },
-      5: { x: 0, z: 0 },
-      6: { x: Math.PI, z: 0 }
+    // Set rotation target depending on face value (bringing face to +Y top)
+    const faceRotations: { [key: number]: { x: number; y: number; z: number } } = {
+      1: { x: 0, y: 0, z: Math.PI / 2 },
+      2: { x: 0, y: 0, z: -Math.PI / 2 },
+      3: { x: 0, y: 0, z: 0 },
+      4: { x: Math.PI, y: 0, z: 0 },
+      5: { x: -Math.PI / 2, y: 0, z: 0 },
+      6: { x: Math.PI / 2, y: 0, z: 0 }
     };
 
-    const target = faceRotations[rollValue] || { x: 0, z: 0 };
+    const target = faceRotations[rollValue] || { x: 0, y: 0, z: 0 };
     const extraSpins = Math.PI * 4;
 
     this.diceTargetRotation.set(
       target.x + extraSpins,
-      target.z + extraSpins,
-      0
+      target.y + extraSpins,
+      target.z
     );
 
     setTimeout(() => {
       this.isDiceRolling = false;
-      this.diceMesh.rotation.set(target.x, target.z, 0);
-    }, 600);
+      this.diceMesh.rotation.set(target.x, target.y, target.z);
+    }, 500);
   }
 
   public updateState(state: GameState, validTokenIds: number[]): void {
@@ -386,8 +386,9 @@ export class Ludo3DEngine {
 
     // Dice Spin Animation
     if (this.isDiceRolling && this.diceMesh) {
-      this.diceMesh.rotation.x += 0.3;
-      this.diceMesh.rotation.y += 0.3;
+      this.diceMesh.rotation.x += (this.diceTargetRotation.x - this.diceMesh.rotation.x) * 0.25;
+      this.diceMesh.rotation.y += (this.diceTargetRotation.y - this.diceMesh.rotation.y) * 0.25;
+      this.diceMesh.rotation.z += (this.diceTargetRotation.z - this.diceMesh.rotation.z) * 0.25;
     }
 
     // Pulse Highlight Rings

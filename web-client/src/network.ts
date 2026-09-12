@@ -21,6 +21,11 @@ export function isMultiplayerAvailable(): boolean {
   return supabaseClient !== null;
 }
 
+export function generateRoomCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+
 export function joinRoom(
   roomCode: string, 
   onStateReceived: (state: GameState) => void
