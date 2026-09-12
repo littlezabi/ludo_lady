@@ -295,6 +295,7 @@ export class Ludo3DEngine {
   }
 
   public updateState(state: GameState, validTokenIds: number[]): void {
+    this.lastGameState = state;
     const colorHexMap: { [key: string]: number } = {
       Red: 0xef4444,
       Green: 0x22c55e,
@@ -512,7 +513,91 @@ export class Ludo3DEngine {
       ring.rotation.z += 0.03;
     });
 
+    // Update Floating Multi-Piece Stack Color Arrow Badges
+    if (this.lastGameState) {
+      this.updateStackBadges();
+    }
+
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private lastGameState: GameState | null = null;
+
+  private updateStackBadges(): void {
+    if (!this.lastGameState) return;
+    const overlayContainer = document.getElementById('stack-overlay-container');
+    if (!overlayContainer) return;
+
+    const state = this.lastGameState;
+    const positionGroups: Map<number, { id: number; color: string }[]> = new Map();
+
+    state.tokens.forEach(t => {
+      if (t.position !== -1 && t.position !== 999) {
+        const group = positionGroups.get(t.position) || [];
+        group.push({ id: t.id, color: t.color });
+        positionGroups.set(t.position, group);
+      }
+    });
+
+    const stackPositions: { posCode: number; colorCounts: { [color: string]: number }; totalCount: number; sampleToken: { id: number; color: string } }[] = [];
+
+    positionGroups.forEach((tokens, posCode) => {
+      if (tokens.length >= 2) {
+        const colorCounts: { [color: string]: number } = {};
+        tokens.forEach(t => {
+          colorCounts[t.color] = (colorCounts[t.color] || 0) + 1;
+        });
+        stackPositions.push({
+          posCode,
+          colorCounts,
+          totalCount: tokens.length,
+          sampleToken: tokens[0]
+        });
+      }
+    });
+
+    overlayContainer.innerHTML = '';
+
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+
+    stackPositions.forEach(item => {
+      const sampleColorIdx = ['Red', 'Green', 'Yellow', 'Blue'].indexOf(item.sampleToken.color);
+      const p3d = getTile3DPosition(item.posCode, item.sampleToken.id, Math.max(0, sampleColorIdx));
+
+      // Calculate 3D top stack height point above pawns
+      const stackTopY = p3d.y + (item.totalCount - 1) * 0.22 + 1.25;
+      const worldVec = new THREE.Vector3(p3d.x, stackTopY, p3d.z);
+
+      // Project 3D point to 2D Screen Space
+      worldVec.project(this.camera);
+
+      // Verify point is in front of camera
+      if (worldVec.z < 1.0) {
+        const screenX = (worldVec.x * 0.5 + 0.5) * width;
+        const screenY = (-worldVec.y * 0.5 + 0.5) * height;
+
+        // Render badge row container centered horizontally
+        const rowEl = document.createElement('div');
+        rowEl.className = 'stack-badge-row';
+        rowEl.style.left = `${screenX}px`;
+        rowEl.style.top = `${screenY}px`;
+
+        // Render color arrow badges side-by-side
+        const order = ['Red', 'Green', 'Yellow', 'Blue'];
+        order.forEach(col => {
+          const cnt = item.colorCounts[col];
+          if (cnt && cnt > 0) {
+            const badge = document.createElement('div');
+            badge.className = `stack-arrow-badge ${col}`;
+            badge.innerHTML = `<span>${cnt}</span>`;
+            rowEl.appendChild(badge);
+          }
+        });
+
+        overlayContainer.appendChild(rowEl);
+      }
+    });
   }
 
   private updateCameraAspect(): void {
