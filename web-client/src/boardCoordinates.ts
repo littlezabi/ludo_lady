@@ -50,14 +50,28 @@ export function getTile3DPosition(positionCode: number, tokenId: number, colorId
   // 2. Finished Center Positions (999)
   if (positionCode === 999) {
     const centerOffsets = [
-      { x: -0.8, z: -0.8 }, // Red
-      { x: -0.8, z: 0.8 },  // Green
-      { x: 0.8, z: 0.8 },   // Yellow
-      { x: 0.8, z: -0.8 }    // Blue
+      { x: -0.9, z: -0.9 }, // Red (Top-Left: -X, -Z)
+      { x: 0.9, z: -0.9 },  // Green (Top-Right: +X, -Z)
+      { x: 0.9, z: 0.9 },   // Yellow (Bottom-Right: +X, +Z)
+      { x: -0.9, z: 0.9 }   // Blue (Bottom-Left: -X, +Z)
     ];
+
+    const subOffsets = [
+      { dx: -0.32, dz: -0.32 },
+      { dx: 0.32, dz: -0.32 },
+      { dx: -0.32, dz: 0.32 },
+      { dx: 0.32, dz: 0.32 }
+    ];
+
     const safeColorIdx = Math.floor(Math.abs(colorIdx)) % 4;
-    const co = centerOffsets[safeColorIdx] || centerOffsets[0];
-    return { x: co.x, y: yPos + 0.05, z: co.z };
+    const baseCo = centerOffsets[safeColorIdx] || centerOffsets[0];
+    const subOff = subOffsets[tokenId % 4] || subOffsets[0];
+
+    return {
+      x: baseCo.x + subOff.dx,
+      y: yPos + 0.05,
+      z: baseCo.z + subOff.dz
+    };
   }
 
   // 3. Home Stretch Positions (100..105, 200..205, 300..305, 400..405)
