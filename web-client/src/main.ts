@@ -38,7 +38,7 @@ function checkIdleTimer() {
   }
 
   const elapsedSeconds = (Date.now() - lastTurnActionTime) / 1000;
-  if (elapsedSeconds >= 10) {
+  if (elapsedSeconds >= 20) {
     if (!isSnoringActive) {
       isSnoringActive = true;
       sounds.startSnoreLoop();
@@ -67,8 +67,8 @@ async function bootstrap() {
     updateUI();
 
     // 4. Bind 3D Pawn Click/Touch
-    engine.setOnTokenClicked((tokenId: number) => {
-      handlePawnClick(tokenId);
+    engine.setOnTokenClicked((tokenId: number, stackTokenIds: number[]) => {
+      handlePawnClick(tokenId, stackTokenIds);
     });
 
     // 5. Setup Menu, Config, and Debug Controls
@@ -498,13 +498,21 @@ function skipTurn() {
   setTurnTo(nextTurn);
 }
 
-function handlePawnClick(tokenId: number) {
+function handlePawnClick(tokenId: number, stackTokenIds: number[] = [tokenId]) {
   resetIdleTimer();
-  if (gameState.dice_roll > 0 && gameState.winner === null && validTokenIds.includes(tokenId)) {
+
+  // If any token in the clicked stack belongs to validTokenIds for the active turn, prioritize moving that token!
+  let targetTokenId = tokenId;
+  const validInStack = stackTokenIds.find(id => validTokenIds.includes(id));
+  if (validInStack !== undefined) {
+    targetTokenId = validInStack;
+  }
+
+  if (gameState.dice_roll > 0 && gameState.winner === null && validTokenIds.includes(targetTokenId)) {
     const oldTokens = gameState.tokens.map(t => ({ color_idx: Math.floor(t.id / 4), position: t.position }));
     const hitterColorIdx = gameState.current_turn;
 
-    gameState = applyMoveToken(gameState, tokenId);
+    gameState = applyMoveToken(gameState, targetTokenId);
     validTokenIds = [];
     selectedDebugTokenId = null;
     engine.selectedDebugTokenId = null;

@@ -35,7 +35,7 @@ export class Ludo3DEngine {
   private pointerDownX = 0;
   private pointerDownY = 0;
 
-  private onTokenClickedCallback?: (tokenId: number) => void;
+  private onTokenClickedCallback?: (primaryTokenId: number, stackTokenIds: number[]) => void;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -466,7 +466,7 @@ export class Ludo3DEngine {
     });
   }
 
-  public setOnTokenClicked(callback: (tokenId: number) => void): void {
+  public setOnTokenClicked(callback: (primaryTokenId: number, stackTokenIds: number[]) => void): void {
     this.onTokenClickedCallback = callback;
   }
 
@@ -490,14 +490,38 @@ export class Ludo3DEngine {
     const intersects = this.raycaster.intersectObjects(Array.from(this.pawnMeshes.values()), true);
 
     if (intersects.length > 0) {
-      let object: THREE.Object3D | null = intersects[0].object;
-      while (object && object.userData.tokenId === undefined && object.parent) {
-        object = object.parent;
-      }
-      if (object && object.userData.tokenId !== undefined) {
-        const tokenId = object.userData.tokenId as number;
+      const hitTokenIds: number[] = [];
+      intersects.forEach(hit => {
+        let object: THREE.Object3D | null = hit.object;
+        while (object && object.userData.tokenId === undefined && object.parent) {
+          object = object.parent;
+        }
+        if (object && object.userData.tokenId !== undefined) {
+          const id = object.userData.tokenId as number;
+          if (!hitTokenIds.includes(id)) {
+            hitTokenIds.push(id);
+          }
+        }
+      });
+
+      if (hitTokenIds.length > 0) {
+        const primaryId = hitTokenIds[0];
+        const allStackIds = new Set<number>(hitTokenIds);
+
+        // Include any other tokens sharing the exact same board tile position as primaryId
+        if (this.lastGameState) {
+          const primaryToken = this.lastGameState.tokens.find(t => t.id === primaryId);
+          if (primaryToken && primaryToken.position !== -1 && primaryToken.position !== 999) {
+            this.lastGameState.tokens.forEach(t => {
+              if (t.position === primaryToken.position) {
+                allStackIds.add(t.id);
+              }
+            });
+          }
+        }
+
         if (this.onTokenClickedCallback) {
-          this.onTokenClickedCallback(tokenId);
+          this.onTokenClickedCallback(primaryId, Array.from(allStackIds));
         }
       }
     }
