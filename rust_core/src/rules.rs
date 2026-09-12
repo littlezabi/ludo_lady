@@ -135,6 +135,8 @@ impl GameState {
         let token_idx = self.tokens.iter().position(|t| t.id == token_id).unwrap();
         let color = self.tokens[token_idx].color;
 
+        let from_pos = self.tokens[token_idx].position;
+
         if self.tokens[token_idx].is_at_base() {
             // Spawn token to start position
             let start_pos = color.start_track_index() as i16;
@@ -161,17 +163,17 @@ impl GameState {
                 self.tokens[token_idx].position = new_track_pos;
                 self.tokens[token_idx].steps_taken = new_steps;
 
-                // Check captures on non-safe tiles
+                let is_teammate = |c1: PlayerColor, c2: PlayerColor| -> bool {
+                    if !self.is_team_mode {
+                        return c1 == c2;
+                    }
+                    (c1 as u8 % 2) == (c2 as u8 % 2)
+                };
+
+                // 1. Destination Tile Capture Check (target_pos)
                 if !is_safe_zone(new_track_pos as u8) {
                     let target_pos = new_track_pos;
                     let mut captured = false;
-
-                    let is_teammate = |c1: PlayerColor, c2: PlayerColor| -> bool {
-                        if !self.is_team_mode {
-                            return c1 == c2;
-                        }
-                        (c1 as u8 % 2) == (c2 as u8 % 2)
-                    };
 
                     // Count friendly tokens (same color or teammate color in 2v2 mode) at target_pos
                     let friendly_count = self.tokens.iter().filter(|t| {
@@ -219,6 +221,38 @@ impl GameState {
 
                     if captured {
                         extra_turn = true; // Bonus turn for capture
+                    }
+                }
+
+                // 2. Departure Tile Sandwich / Exposed Bottom Piece Check (from_pos)
+                // If top piece steps off leaving exposed opponent pieces on a non-safe tile
+                if from_pos >= 0 && !is_safe_zone(from_pos as u8) {
+                    let mut remaining_opponents = Vec::new();
+                    for t in &self.tokens {
+                        if t.position == from_pos && !t.is_at_base() && !t.is_finished() {
+                            remaining_opponents.push(t.color);
+                        }
+                    }
+
+                    let team0_count = remaining_opponents.iter().filter(|&&c| (c as u8 % 2) == 0).count();
+                    let team1_count = remaining_opponents.iter().filter(|&&c| (c as u8 % 2) == 1).count();
+
+                    if team0_count > 0 && team1_count > 0 {
+                        let moving_team = (color as u8 % 2);
+                        let winner_team = if moving_team == 0 { 1 } else { 0 };
+
+                        for t in &mut self.tokens {
+                            if t.position == from_pos && !t.is_at_base() && !t.is_finished() {
+                                if (t.color as u8 % 2) != winner_team {
+                                    t.position = -1;
+                                    t.steps_taken = 0;
+                                    self.last_action = format!(
+                                        "Player {:?}'s exposed piece on square {} was captured!",
+                                        t.color, from_pos
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
             }
