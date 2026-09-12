@@ -405,22 +405,23 @@ export class Ludo3DEngine {
         const colName = token ? token.color : 'Red';
         const colHex = colorHexMap[colName] || 0xef4444;
 
+        // Polished metallic & emissive material strictly matching active movable piece color
         const triMat = new THREE.MeshStandardMaterial({
           color: colHex,
           emissive: colHex,
-          emissiveIntensity: 0.45,
-          roughness: 0.3,
-          metalness: 0.2
+          emissiveIntensity: 0.35,
+          roughness: 0.15,
+          metalness: 0.75
         });
 
-        // 3D Triangle pointer arrow (3-sided pyramid pointing down towards movable pawn)
-        const triGeo = new THREE.ConeGeometry(0.26, 0.48, 3);
-        triGeo.rotateX(Math.PI);
+        // Sleek 3D Triangle pointer arrow pointing down directly above the active piece
+        const triGeo = new THREE.ConeGeometry(0.24, 0.44, 3);
+        triGeo.rotateX(Math.PI); // Point apex down towards piece head
 
         const triMesh = new THREE.Mesh(triGeo, triMat);
         const floatY = targetPos.y + 1.25;
         triMesh.position.set(targetPos.x, floatY, targetPos.z);
-        triMesh.userData = { initialX: targetPos.x, id };
+        triMesh.userData = { id };
 
         this.scene.add(triMesh);
         this.highlightRings.push(triMesh);
@@ -434,14 +435,15 @@ export class Ludo3DEngine {
         const debugTriMat = new THREE.MeshStandardMaterial({
           color: 0xf59e0b,
           emissive: 0xf59e0b,
-          emissiveIntensity: 0.5
+          emissiveIntensity: 0.45,
+          roughness: 0.15,
+          metalness: 0.75
         });
-        const debugTriGeo = new THREE.ConeGeometry(0.28, 0.50, 3);
+        const debugTriGeo = new THREE.ConeGeometry(0.26, 0.46, 3);
         debugTriGeo.rotateX(Math.PI);
         const debugTri = new THREE.Mesh(debugTriGeo, debugTriMat);
         const floatY = selectedMesh.position.y + 1.25;
         debugTri.position.set(selectedMesh.position.x, floatY, selectedMesh.position.z);
-        debugTri.userData = { initialX: selectedMesh.position.x };
         this.scene.add(debugTri);
         this.highlightRings.push(debugTri);
       }
@@ -530,14 +532,9 @@ export class Ludo3DEngine {
       this.diceMesh.rotation.z += (this.diceTargetRotation.z - this.diceMesh.rotation.z) * 0.25;
     }
 
-    // Animate Movable Piece Triangles along X Axis
-    const animTime = performance.now() * 0.006;
+    // Smooth Rounding / Rotation Animation of Movable Piece Triangles
     this.highlightRings.forEach(tri => {
-      const initialX = tri.userData.initialX;
-      if (typeof initialX === 'number') {
-        tri.position.x = initialX + Math.sin(animTime) * 0.18;
-      }
-      tri.rotation.y += 0.02;
+      tri.rotation.y += 0.035;
     });
 
     // Update Floating Multi-Piece Stack Color Arrow Badges
