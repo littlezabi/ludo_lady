@@ -11,6 +11,45 @@ let roomCode: string | null = null;
 let generatedRoomCode: string = '';
 let isDebugModeEnabled: boolean = localStorage.getItem('ludo_debug_mode') !== 'false';
 
+let lastTurnActionTime: number = Date.now();
+let isSnoringActive: boolean = false;
+let trackedTurnIdx: number = 0;
+
+function resetIdleTimer() {
+  lastTurnActionTime = Date.now();
+  if (isSnoringActive) {
+    isSnoringActive = false;
+    sounds.stopSnoreLoop();
+    if (engine) engine.hideSleepEmoji();
+  }
+}
+
+function checkIdleTimer() {
+  if (!gameState || gameState.winner !== null) {
+    resetIdleTimer();
+    return;
+  }
+
+  // Detect turn change
+  if (gameState.current_turn !== trackedTurnIdx) {
+    trackedTurnIdx = gameState.current_turn;
+    resetIdleTimer();
+    return;
+  }
+
+  const elapsedSeconds = (Date.now() - lastTurnActionTime) / 1000;
+  if (elapsedSeconds >= 10) {
+    if (!isSnoringActive) {
+      isSnoringActive = true;
+      sounds.startSnoreLoop();
+      engine.showSleepEmoji(gameState.current_turn);
+      const turnColors = ['Red', 'Green', 'Yellow', 'Blue'];
+      gameState.last_action = `[IDLE] ${turnColors[gameState.current_turn]} is sleeping... Zzz 😴`;
+      updateUI();
+    }
+  }
+}
+
 async function bootstrap() {
   const loadingOverlay = document.getElementById('loading-overlay')!;
   const canvasContainer = document.getElementById('canvas-container')!;
@@ -38,7 +77,10 @@ async function bootstrap() {
     setupDebugControls();
     setupUIControls();
 
-    // 6. Check URL query params for direct room join link (?room=123456)
+    // 6. Start 10-Second Idle Detector Interval
+    setInterval(checkIdleTimer, 500);
+
+    // 7. Check URL query params for direct room join link (?room=123456)
     checkURLRoomCode();
 
     // Hide Loading Screen
@@ -52,6 +94,7 @@ async function bootstrap() {
 }
 
 function handleRemoteStateUpdate(remoteState: GameState) {
+  resetIdleTimer();
   if (gameState && gameState.tokens && remoteState.tokens) {
     let victimColorIdx: number | null = null;
     const hitterColorIdx = gameState.current_turn;
@@ -214,6 +257,7 @@ function updateRoomDisplay(label: string) {
 }
 
 function handleRollDice() {
+  resetIdleTimer();
   if (gameState.winner !== null) return;
   if (gameState.dice_roll > 0 && validTokenIds.length > 0) return; // Must move first
 
@@ -455,6 +499,7 @@ function skipTurn() {
 }
 
 function handlePawnClick(tokenId: number) {
+  resetIdleTimer();
   if (gameState.dice_roll > 0 && gameState.winner === null && validTokenIds.includes(tokenId)) {
     const oldTokens = gameState.tokens.map(t => ({ color_idx: Math.floor(t.id / 4), position: t.position }));
     const hitterColorIdx = gameState.current_turn;

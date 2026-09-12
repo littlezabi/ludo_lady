@@ -51,8 +51,36 @@ class SoundManager {
     this.playAudioFile(picked, 0.95);
   }
 
+  private snoreAudio: HTMLAudioElement | null = null;
+
   public playSnore() {
     this.playAudioFile('/sounds/you_are_snoring/snore_1.mp3', 0.8);
+  }
+
+  public startSnoreLoop() {
+    if (this.muted || this.volume <= 0) return;
+    if (this.snoreAudio) return;
+
+    try {
+      this.snoreAudio = new Audio('/sounds/you_are_snoring/snore_1.mp3');
+      this.snoreAudio.loop = true;
+      this.snoreAudio.volume = Math.max(0, Math.min(1, this.volume * 0.85));
+      this.snoreAudio.play().catch(() => {});
+    } catch {
+      // Ignore autoplay error
+    }
+  }
+
+  public stopSnoreLoop() {
+    if (this.snoreAudio) {
+      try {
+        this.snoreAudio.pause();
+        this.snoreAudio.currentTime = 0;
+      } catch {
+        // Ignore error
+      }
+      this.snoreAudio = null;
+    }
   }
 
   playDiceRoll() {

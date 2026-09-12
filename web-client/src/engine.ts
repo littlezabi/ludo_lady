@@ -632,6 +632,9 @@ export class Ludo3DEngine {
       this.updateStackBadges();
     }
 
+    // Update Floating Sleep / Snoring Emoji Position
+    this.updateSleepEmojiPosition();
+
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -838,6 +841,73 @@ export class Ludo3DEngine {
     // Trigger hitter laughing emoji and victim crying emoji
     createBubble(hitterColorIdx, true);
     createBubble(victimColorIdx, false);
+  }
+
+  private sleepEmojiElement: HTMLElement | null = null;
+  public activeSleepPlayerIdx: number | null = null;
+
+  public showSleepEmoji(playerColorIdx: number): void {
+    if (this.activeSleepPlayerIdx === playerColorIdx && this.sleepEmojiElement) return;
+
+    this.hideSleepEmoji();
+    this.activeSleepPlayerIdx = playerColorIdx;
+
+    const overlayContainer = document.getElementById('emoji-overlay-container');
+    if (!overlayContainer) return;
+
+    const colorNames = ['Red', 'Green', 'Yellow', 'Blue'];
+    const safeIdx = Math.max(0, Math.floor(playerColorIdx)) % 4;
+
+    const bubble = document.createElement('div');
+    bubble.className = `sleep-emoji-bubble player-${safeIdx}`;
+
+    bubble.innerHTML = `
+      <div class="sleep-zzz-particles">
+        <span>💤</span>
+        <span>😴</span>
+        <span>💤</span>
+      </div>
+      <div class="sleep-label">${colorNames[safeIdx]} is Sleeping! Zzz...</div>
+    `;
+
+    overlayContainer.appendChild(bubble);
+    this.sleepEmojiElement = bubble;
+    this.updateSleepEmojiPosition();
+  }
+
+  public hideSleepEmoji(): void {
+    if (this.sleepEmojiElement) {
+      this.sleepEmojiElement.remove();
+      this.sleepEmojiElement = null;
+    }
+    this.activeSleepPlayerIdx = null;
+  }
+
+  public updateSleepEmojiPosition(): void {
+    if (this.activeSleepPlayerIdx === null || !this.sleepEmojiElement) return;
+
+    const homeCorners = [
+      new THREE.Vector3(-4.45, 2.2, -4.45), // Red
+      new THREE.Vector3(4.45, 2.2, -4.45),  // Green
+      new THREE.Vector3(4.45, 2.2, 4.45),   // Yellow
+      new THREE.Vector3(-4.45, 2.2, 4.45)   // Blue
+    ];
+
+    const safeIdx = Math.max(0, Math.floor(this.activeSleepPlayerIdx)) % 4;
+    const worldPos = homeCorners[safeIdx].clone();
+
+    const vector = worldPos.clone();
+    vector.project(this.camera);
+
+    const canvas = this.renderer.domElement;
+    const widthHalf = canvas.clientWidth / 2;
+    const heightHalf = canvas.clientHeight / 2;
+
+    const screenX = (vector.x * widthHalf) + widthHalf;
+    const screenY = -(vector.y * heightHalf) + heightHalf;
+
+    this.sleepEmojiElement.style.left = `${screenX}px`;
+    this.sleepEmojiElement.style.top = `${screenY}px`;
   }
 
   private updateCameraAspect(): void {
