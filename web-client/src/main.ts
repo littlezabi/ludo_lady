@@ -24,6 +24,29 @@ function resetIdleTimer() {
   }
 }
 
+function getPlayerColorInfo(state: GameState, playerIdx: number) {
+  if (state.num_players === 2) {
+    return playerIdx === 0
+      ? { name: 'Red', hex: '#ef4444' }
+      : { name: 'Yellow', hex: '#eab308' };
+  }
+  if (state.num_players === 3) {
+    const colors = [
+      { name: 'Red', hex: '#ef4444' },
+      { name: 'Green', hex: '#22c55e' },
+      { name: 'Yellow', hex: '#eab308' }
+    ];
+    return colors[playerIdx % 3];
+  }
+  const colors = [
+    { name: 'Red', hex: '#ef4444' },
+    { name: 'Green', hex: '#22c55e' },
+    { name: 'Yellow', hex: '#eab308' },
+    { name: 'Blue', hex: '#3b82f6' }
+  ];
+  return colors[playerIdx % 4];
+}
+
 function checkIdleTimer() {
   if (!gameState || gameState.winner !== null) {
     resetIdleTimer();
@@ -43,8 +66,8 @@ function checkIdleTimer() {
       isSnoringActive = true;
       sounds.startSnoreLoop();
       engine.showSleepEmoji(gameState.current_turn);
-      const turnColors = ['Red', 'Green', 'Yellow', 'Blue'];
-      gameState.last_action = `[IDLE] ${turnColors[gameState.current_turn]} is sleeping... Zzz 😴`;
+      const turnInfo = getPlayerColorInfo(gameState, gameState.current_turn);
+      gameState.last_action = `[IDLE] ${turnInfo.name} is sleeping... Zzz 😴`;
       updateUI();
     }
   }
@@ -596,11 +619,9 @@ function updateUI() {
   engine.selectedDebugTokenId = selectedDebugTokenId;
   engine.updateState(gameState, validTokenIds);
 
-  const turnColors = ['Red', 'Green', 'Yellow', 'Blue'];
-  const turnHex = ['#ef4444', '#22c55e', '#eab308', '#3b82f6'];
-
-  const currentTurnColor = turnColors[gameState.current_turn];
-  const currentTurnHex = turnHex[gameState.current_turn];
+  const currentTurnInfo = getPlayerColorInfo(gameState, gameState.current_turn);
+  const currentTurnColor = currentTurnInfo.name;
+  const currentTurnHex = currentTurnInfo.hex;
 
   // Turn Badge
   const turnBadge = document.getElementById('turn-badge')!;
@@ -649,7 +670,8 @@ function updateUI() {
         winnerText.textContent = `🎉 TEAM ${winningTeamName} HAS WON THE MATCH!`;
       } else {
         const champIdx = gameState.winners_rank && gameState.winners_rank.length > 0 ? gameState.winners_rank[0] : (gameState.winner ?? 0);
-        winnerText.textContent = `🎉 PLAYER ${turnColors[champIdx]} IS THE 👑 CHAMPION!`;
+        const champInfo = getPlayerColorInfo(gameState, champIdx);
+        winnerText.textContent = `🎉 PLAYER ${champInfo.name} IS THE 👑 CHAMPION!`;
       }
       winnerModal.style.display = 'flex';
     } else {

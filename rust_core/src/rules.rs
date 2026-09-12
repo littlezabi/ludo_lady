@@ -22,14 +22,35 @@ pub struct GameState {
 }
 
 impl GameState {
+    pub fn player_color(&self, player_idx: u8) -> PlayerColor {
+        match self.num_players {
+            2 => match player_idx % 2 {
+                0 => PlayerColor::Red,
+                _ => PlayerColor::Yellow,
+            },
+            3 => match player_idx % 3 {
+                0 => PlayerColor::Red,
+                1 => PlayerColor::Green,
+                _ => PlayerColor::Yellow,
+            },
+            _ => PlayerColor::from_idx(player_idx),
+        }
+    }
+
     pub fn new(num_players: u8) -> Self {
         let num_players = num_players.clamp(2, 4);
         let mut tokens = Vec::new();
 
-        for p_idx in 0..num_players {
-            let color = PlayerColor::from_idx(p_idx);
+        let player_colors = match num_players {
+            2 => vec![PlayerColor::Red, PlayerColor::Yellow],
+            3 => vec![PlayerColor::Red, PlayerColor::Green, PlayerColor::Yellow],
+            _ => vec![PlayerColor::Red, PlayerColor::Green, PlayerColor::Yellow, PlayerColor::Blue],
+        };
+
+        for &color in &player_colors {
+            let color_idx = color as u8;
             for t_id in 0..4 {
-                tokens.push(Token::new(p_idx * 4 + t_id, color));
+                tokens.push(Token::new(color_idx * 4 + t_id, color));
             }
         }
 
@@ -97,7 +118,7 @@ impl GameState {
             return Vec::new();
         }
 
-        let current_color = PlayerColor::from_idx(self.current_turn);
+        let current_color = self.player_color(self.current_turn);
         let mut valid_token_ids = Vec::new();
 
         // In 2v2 Team Mode: If player's own pieces are all finished, player can move teammate's pieces!
@@ -107,7 +128,7 @@ impl GameState {
 
         let target_color = if self.is_team_mode && own_tokens_finished {
             let teammate_idx = (self.current_turn + 2) % 4;
-            PlayerColor::from_idx(teammate_idx)
+            self.player_color(teammate_idx)
         } else {
             current_color
         };
@@ -303,11 +324,11 @@ impl GameState {
     }
 
     pub fn is_player_finished(&self, player_idx: u8) -> bool {
-        let color = PlayerColor::from_idx(player_idx);
+        let color = self.player_color(player_idx);
         let own_finished = self.tokens.iter().filter(|t| t.color == color).all(|t| t.is_finished());
 
         if self.is_team_mode && own_finished {
-            let teammate_color = PlayerColor::from_idx((player_idx + 2) % 4);
+            let teammate_color = self.player_color((player_idx + 2) % 4);
             let teammate_finished = self.tokens.iter().filter(|t| t.color == teammate_color).all(|t| t.is_finished());
             return teammate_finished;
         }

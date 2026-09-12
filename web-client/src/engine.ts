@@ -371,6 +371,20 @@ export class Ludo3DEngine {
   public updateState(state: GameState, validTokenIds: number[]): void {
     this.lastGameState = state;
 
+    // 0. Remove & dispose 3D pawn meshes for players that are not active in the current match (e.g. Green & Blue in 1v1 mode)
+    const activeTokenIdsSet = new Set(state.tokens.map(t => t.id));
+    this.pawnMeshes.forEach((mesh, tokenId) => {
+      if (!activeTokenIdsSet.has(tokenId)) {
+        this.scene.remove(mesh);
+        if (mesh.geometry) mesh.geometry.dispose();
+        this.pawnMeshes.delete(tokenId);
+        this.pawnWaypoints.delete(tokenId);
+        this.pawnTargetPositions.delete(tokenId);
+        this.tokenPreviousSteps.delete(tokenId);
+        this.tokenPreviousPositions.delete(tokenId);
+      }
+    });
+
     if (this.cameraViewMode === 'active_turn') {
       this.updateCameraTargetPos();
     }
@@ -671,6 +685,13 @@ export class Ludo3DEngine {
         ? (this.lastGameState ? this.lastGameState.current_turn : 0)
         : this.myPlayerColor;
 
+      let colorIdx = activeIdx;
+      if (this.lastGameState && this.lastGameState.num_players === 2) {
+        colorIdx = activeIdx === 0 ? 0 : 2; // Red (0) vs Yellow (2)
+      } else if (this.lastGameState && this.lastGameState.num_players === 3) {
+        colorIdx = activeIdx === 0 ? 0 : activeIdx === 1 ? 1 : 2; // Red (0), Green (1), Yellow (2)
+      }
+
       const homePosList = [
         new THREE.Vector3(-14, 16, -14), // Red (Top-Left)
         new THREE.Vector3(14, 16, -14),  // Green (Top-Right)
@@ -678,7 +699,7 @@ export class Ludo3DEngine {
         new THREE.Vector3(-14, 16, 14)   // Blue (Bottom-Left)
       ];
 
-      targetPos = homePosList[Math.max(0, activeIdx) % 4] || homePosList[0];
+      targetPos = homePosList[Math.max(0, colorIdx) % 4] || homePosList[0];
     }
 
     this.targetCameraPos.copy(targetPos);
