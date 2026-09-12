@@ -148,9 +148,11 @@ function handleRemoteStateUpdate(remoteState: GameState) {
 }
 
 let selectedGameMode: 'classic' | 'team' = 'classic';
+let isMatchActive = false;
 
 function setupMenuControls() {
   const mainMenuOverlay = document.getElementById('main-menu-overlay')!;
+  const btnCloseMainMenu = document.getElementById('btn-close-main-menu')!;
   const tabCreate = document.getElementById('tab-create')!;
   const tabJoin = document.getElementById('tab-join')!;
   const tabLocal = document.getElementById('tab-local')!;
@@ -164,13 +166,36 @@ function setupMenuControls() {
   const generatedCodeEl = document.getElementById('generated-room-code')!;
   const btnCopy = document.getElementById('btn-copy-generated')!;
 
-  // Game Mode Selector Sync (Classic 4P vs 2v2 Team Mode)
+  // Close / Resume Menu Button Handler
+  btnCloseMainMenu?.addEventListener('click', () => {
+    sounds.playClick();
+    mainMenuOverlay.classList.add('hidden');
+  });
+
+  const markGameActive = () => {
+    isMatchActive = true;
+    if (btnCloseMainMenu) btnCloseMainMenu.style.display = 'flex';
+  };
+
+  // Game Mode Selector Sync (Classic 4P vs 2v2 Team Mode) & Persistence
+  const savedGameMode = (localStorage.getItem('ludo_match_type') as 'classic' | 'team') || 'classic';
+  selectedGameMode = savedGameMode;
+
   const modeBtns = document.querySelectorAll<HTMLButtonElement>('.mode-select-btn');
+  modeBtns.forEach(b => {
+    if (b.dataset.mode === selectedGameMode) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
+
   modeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       sounds.playClick();
       const mode = (btn.dataset.mode as 'classic' | 'team') || 'classic';
       selectedGameMode = mode;
+      localStorage.setItem('ludo_match_type', mode);
       modeBtns.forEach(b => {
         if (b.dataset.mode === selectedGameMode) {
           b.classList.add('active');
@@ -180,6 +205,26 @@ function setupMenuControls() {
       });
     });
   });
+
+  // Load & Persist Computer Config Select
+  const computerConfigSelect = document.getElementById('menu-computer-config') as HTMLSelectElement;
+  if (computerConfigSelect) {
+    const savedCompConfig = localStorage.getItem('ludo_computer_config') || '3';
+    computerConfigSelect.value = savedCompConfig;
+    computerConfigSelect.addEventListener('change', () => {
+      localStorage.setItem('ludo_computer_config', computerConfigSelect.value);
+    });
+  }
+
+  // Load & Persist Player Count Select
+  const playerCountSelect = document.getElementById('menu-player-count') as HTMLSelectElement;
+  if (playerCountSelect) {
+    const savedPlayerCount = localStorage.getItem('ludo_player_count') || '4';
+    playerCountSelect.value = savedPlayerCount;
+    playerCountSelect.addEventListener('change', () => {
+      localStorage.setItem('ludo_player_count', playerCountSelect.value);
+    });
+  }
 
   // Generate Initial Room Code
   generatedRoomCode = generateRoomCode();
@@ -231,6 +276,7 @@ function setupMenuControls() {
     broadcastGameState(gameState);
 
     updateRoomDisplay(`Room: ${roomCode} ${isTeamMode ? '(2v2 Teams)' : ''}`);
+    markGameActive();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -252,6 +298,7 @@ function setupMenuControls() {
     });
 
     updateRoomDisplay(`Room: ${roomCode}`);
+    markGameActive();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -265,6 +312,7 @@ function setupMenuControls() {
     validTokenIds = [];
 
     updateRoomDisplay(isTeamMode ? "Local Match (2v2 Teams)" : "Local Match");
+    markGameActive();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -284,6 +332,7 @@ function setupMenuControls() {
 
     const modeLabel = isTeamMode ? "vs Computer (2v2 Team)" : "vs Computer";
     updateRoomDisplay(modeLabel);
+    markGameActive();
     mainMenuOverlay.classList.add('hidden');
     updateUI();
   });
@@ -1066,7 +1115,7 @@ function setupConfigControls() {
   });
 
   // Load Saved Preferences
-  const savedCameraView = (localStorage.getItem('ludo_camera_mode') as CameraViewMode) || 'free';
+  const savedCameraView = (localStorage.getItem('ludo_camera_mode') as CameraViewMode) || 'top';
   const savedPlayerColor = parseInt(localStorage.getItem('ludo_player_color') || '0', 10);
   const savedSoundMuted = localStorage.getItem('ludo_sound_muted') === 'true';
   const savedSoundVolume = parseInt(localStorage.getItem('ludo_sound_volume') || '100', 10);

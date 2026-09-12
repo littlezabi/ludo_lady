@@ -30,7 +30,7 @@ export class Ludo3DEngine {
   private stackIndicatorGroup = new THREE.Group();
   private dirLight!: THREE.DirectionalLight;
 
-  public cameraViewMode: CameraViewMode = 'free';
+  public cameraViewMode: CameraViewMode = 'top';
   public myPlayerColor: number = 0; // 0: Red, 1: Green, 2: Yellow, 3: Blue
   private targetCameraPos = new THREE.Vector3(0, 16, 14);
   private targetCameraLookAt = new THREE.Vector3(0, 0, 0);
@@ -58,7 +58,7 @@ export class Ludo3DEngine {
       0.1,
       1000
     );
-    this.camera.position.set(0, 16, 14);
+    this.camera.position.set(0, 22, 0.001);
     this.camera.lookAt(0, 0, 0);
 
     // 3. Renderer
@@ -77,6 +77,11 @@ export class Ludo3DEngine {
     this.controls.minDistance = 6;
     this.controls.maxDistance = 45;
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+    const isFree = this.cameraViewMode === 'free';
+    this.controls.enableRotate = isFree;
+    this.controls.enablePan = isFree;
+    this.controls.enableZoom = isFree;
 
     // Set responsive camera position based on screen aspect ratio
     this.updateCameraAspect();
@@ -660,7 +665,11 @@ export class Ludo3DEngine {
     this.cameraViewMode = mode;
     this.myPlayerColor = playerColorIdx;
 
+    const isFree = mode === 'free';
     if (this.controls) {
+      this.controls.enableRotate = isFree;
+      this.controls.enablePan = isFree;
+      this.controls.enableZoom = isFree;
       this.controls.target.set(0, 0, 0);
       if (mode === 'top') {
         this.camera.up.set(0, 0, -1);
@@ -690,7 +699,9 @@ export class Ludo3DEngine {
     const targetLookAt = new THREE.Vector3(0, 0, 0);
 
     if (this.cameraViewMode === 'top') {
-      targetPos.set(0, 22, 0.001);
+      const aspect = this.container.clientWidth / this.container.clientHeight;
+      const topY = aspect < 1.0 ? Math.min(48, Math.max(22, 22 / aspect)) : 22;
+      targetPos.set(0, topY, 0.001);
       this.camera.up.set(0, 0, -1);
     } else if (this.cameraViewMode === 'home' || this.cameraViewMode === 'active_turn') {
       this.camera.up.set(0, 1, 0);
@@ -750,7 +761,7 @@ export class Ludo3DEngine {
 
         if (isReverseRewind) {
           // Fast smooth sliding drag along track blocks in reverse
-          const speed = 0.42; // Rapid smooth sliding speed per track cell
+          const speed = 0.85; // Rapid smooth sliding speed per track cell
           mesh.position.x += (currentTarget.x - mesh.position.x) * speed;
           mesh.position.z += (currentTarget.z - mesh.position.z) * speed;
           mesh.position.y = 0.28; // Slide flat on track surface
@@ -1168,10 +1179,19 @@ export class Ludo3DEngine {
     const aspect = this.container.clientWidth / this.container.clientHeight;
     this.camera.aspect = aspect;
 
-    // Adjust camera distance dynamically for mobile portrait screens (aspect < 1.0)
-    if (aspect < 1.0) {
+    if (this.cameraViewMode === 'top') {
+      const topY = aspect < 1.0 ? Math.min(48, Math.max(22, 22 / aspect)) : 22;
+      this.targetCameraPos.set(0, topY, 0.001);
+      if (!this.isTransitioningCamera) {
+        this.camera.position.set(0, topY, 0.001);
+        this.controls.target.set(0, 0, 0);
+        this.controls.update();
+      }
+    } else if (aspect < 1.0) {
       const zoomFactor = Math.max(1.0, 1.25 / aspect);
-      this.camera.position.set(0, 16 * zoomFactor, 14 * zoomFactor);
+      if (!this.isTransitioningCamera && this.cameraViewMode === 'free') {
+        this.camera.position.set(0, 16 * zoomFactor, 14 * zoomFactor);
+      }
     }
 
     this.camera.updateProjectionMatrix();

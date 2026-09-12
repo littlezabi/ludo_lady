@@ -964,6 +964,8 @@
   <!-- Opening Main Menu Overlay -->
   <div id="main-menu-overlay">
     <div class="menu-card">
+      <button id="btn-close-main-menu" style="display:none; position:absolute; top:1.2rem; right:1.5rem; background:rgba(255,255,255,0.08); border:1px solid var(--border-color); color:var(--text-muted); width:32px; height:32px; border-radius:50%; font-size:1.1rem; cursor:pointer; align-items:center; justify-content:center; transition:all 0.2s; z-index:10;" title="Resume Game">✕</button>
+
       <div class="menu-header">
         <div class="menu-title">
           <span>🎲</span> Ludo Lady 3D
@@ -1067,11 +1069,11 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">🤖 Computer Opponent Setup</label>
+          <label class="form-label">🤖 Computer Setup</label>
           <select id="menu-computer-config">
-            <option value="3" selected>1 Human vs 3 Hard AI Computers (Red vs Green, Yellow, Blue)</option>
-            <option value="2">2 Humans vs 2 Hard AI Computers (Red, Green vs Yellow, Blue)</option>
-            <option value="1">1v1: 1 Human vs 1 Hard AI Computer (Red vs Yellow)</option>
+            <option value="3" selected>1 Human vs 3 Bots (Red vs All)</option>
+            <option value="2">2 Humans vs 2 Bots (Red, Green vs Yellow, Blue)</option>
+            <option value="1">1v1: 1 Human vs 1 Bot (Red vs Yellow)</option>
           </select>
         </div>
 
@@ -1140,10 +1142,10 @@
         <div class="form-group">
           <label class="form-label">🎥 3D Camera View Mode</label>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-top:0.3rem;">
-            <button class="config-view-btn active" data-view="free">
+            <button class="config-view-btn" data-view="free">
               🌐 Free Orbit 3D
             </button>
-            <button class="config-view-btn" data-view="top">
+            <button class="config-view-btn active" data-view="top">
               🧭 Top-Down View
             </button>
             <button class="config-view-btn" data-view="home">
