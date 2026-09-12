@@ -407,26 +407,45 @@ export class Ludo3DEngine {
         const colName = token ? token.color : 'Red';
         const colHex = colorHexMap[colName] || 0xef4444;
 
-        // Polished metallic & emissive material strictly matching active movable piece color
-        const triMat = new THREE.MeshStandardMaterial({
+        // Group container for high-contrast dual-shell triangle
+        const triGroup = new THREE.Group();
+
+        // 1. Outer Bright High-Contrast White Outline Shell (prevents color blending from top view)
+        const outerMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.6,
+          roughness: 0.1,
+          metalness: 0.9,
+          side: THREE.DoubleSide
+        });
+        const outerGeo = new THREE.ConeGeometry(0.28, 0.50, 3);
+        outerGeo.rotateX(Math.PI);
+        const outerMesh = new THREE.Mesh(outerGeo, outerMat);
+
+        // 2. Inner Piece-Colored High-Gloss Core Pyramid
+        const innerMat = new THREE.MeshStandardMaterial({
           color: colHex,
           emissive: colHex,
-          emissiveIntensity: 0.35,
+          emissiveIntensity: 0.5,
           roughness: 0.15,
-          metalness: 0.75
+          metalness: 0.8
         });
+        const innerGeo = new THREE.ConeGeometry(0.23, 0.46, 3);
+        innerGeo.rotateX(Math.PI);
+        const innerMesh = new THREE.Mesh(innerGeo, innerMat);
+        innerMesh.position.set(0, -0.01, 0);
 
-        // Sleek 3D Triangle pointer arrow pointing down directly above the active piece
-        const triGeo = new THREE.ConeGeometry(0.24, 0.44, 3);
-        triGeo.rotateX(Math.PI); // Point apex down towards piece head
+        triGroup.add(outerMesh);
+        triGroup.add(innerMesh);
 
-        const triMesh = new THREE.Mesh(triGeo, triMat);
-        const floatY = targetPos.y + 1.25;
-        triMesh.position.set(targetPos.x, floatY, targetPos.z);
-        triMesh.userData = { id };
+        // Float height set to 1.35 so there is clear 3D air gap above pawn head
+        const floatY = targetPos.y + 1.35;
+        triGroup.position.set(targetPos.x, floatY, targetPos.z);
+        triGroup.userData = { id, baseFloatY: floatY, innerMat };
 
-        this.scene.add(triMesh);
-        this.highlightRings.push(triMesh);
+        this.scene.add(triGroup);
+        this.highlightRings.push(triGroup as unknown as THREE.Mesh);
       }
     });
   }
@@ -513,9 +532,21 @@ export class Ludo3DEngine {
       this.diceMesh.rotation.z += (this.diceTargetRotation.z - this.diceMesh.rotation.z) * 0.25;
     }
 
-    // Smooth Rounding / Rotation Animation & Active Piece Position Tracking
+    // Smooth Rounding Rotation, Pulsing Emissive Glow, Vertical Bobbing & Piece Position Tracking
+    const animTime = performance.now() * 0.005;
     this.highlightRings.forEach(tri => {
       tri.rotation.y += 0.035;
+
+      // Vertical floating bobbing animation
+      const baseFloatY = (tri.userData.baseFloatY as number | undefined) ?? tri.position.y;
+      tri.position.y = baseFloatY + Math.sin(animTime * 5) * 0.08;
+
+      // Pulse emissive intensity for glowing visual aura
+      const innerMat = tri.userData.innerMat as THREE.MeshStandardMaterial | undefined;
+      if (innerMat) {
+        innerMat.emissiveIntensity = 0.4 + Math.sin(animTime * 8) * 0.25;
+      }
+
       const tokenId = tri.userData.id;
       if (typeof tokenId === 'number') {
         const mesh = this.pawnMeshes.get(tokenId);
